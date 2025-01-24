@@ -1,11 +1,11 @@
 #include "application.h"
 
-#include <SDL.h>
-#include <SDL_vulkan.h>
-
 #include "renderEngine/renderEngine.h"
 
 #include "layers/imguiLayer.h"
+
+#include <SDL.h>
+#include <SDL_vulkan.h>
 
 namespace MyCore
 {
@@ -44,12 +44,17 @@ namespace MyCore
 
 		std::vector<const char*> deviceEXTs{
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-			VK_EXT_MESH_SHADER_EXTENSION_NAME
+			VK_EXT_MESH_SHADER_EXTENSION_NAME,
+			VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME,
+			VK_EXT_NESTED_COMMAND_BUFFER_EXTENSION_NAME
 		};
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, 
 							vk::PhysicalDeviceMeshShaderFeaturesEXT,
 							vk::PhysicalDevice16BitStorageFeatures,
-							vk::PhysicalDevice8BitStorageFeatures> ext_chain;
+							vk::PhysicalDevice8BitStorageFeatures,
+							vk::PhysicalDeviceMultiviewFeatures,
+							vk::PhysicalDeviceFragmentShadingRateFeaturesKHR,
+							vk::PhysicalDeviceNestedCommandBufferFeaturesEXT> ext_chain;
 		
 		int width, height;
 		SDL_GetWindowSize(window, &width, &height);

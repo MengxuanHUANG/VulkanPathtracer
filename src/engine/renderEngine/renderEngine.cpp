@@ -70,6 +70,12 @@ namespace VK_Renderer
 		{
 			m_Fences.push_back(m_Device->GetDevice().createFenceUnique(vk::FenceCreateInfo{.flags = vk::FenceCreateFlagBits::eSignaled}));
 		}
+
+		// Reset Fences
+		for (auto const& fence : m_Fences)
+		{
+			m_Device->GetDevice().resetFences(fence.get());
+		}
 	}
 
 	void VK_RenderEngine::Reset()
@@ -138,8 +144,8 @@ namespace VK_Renderer
 
 	void VK_RenderEngine::BeforeRender()
 	{
-		m_Swapchain->AcquireNextImage();
 		WaitForFence();
+		m_Swapchain->AcquireNextImage();
 	}
 
 	void VK_RenderEngine::Render()

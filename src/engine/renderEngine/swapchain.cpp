@@ -11,7 +11,8 @@ namespace VK_Renderer
 								const uint32_t& width, const uint32_t& height)
 		: m_Device(device),
 		  vk_Surface(surface),
-		  m_QueueFamilyIndices(queueFamilyIdx)
+		  m_QueueFamilyIndices(queueFamilyIdx),
+		  m_ImageIdx(0)
 	{
 		vk::SurfaceFormatKHR surface_format = ChooseSurfaceFormat(details.surfaceFormats);
 		vk_ImageFormat = surface_format.format;

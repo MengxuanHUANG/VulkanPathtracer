@@ -162,16 +162,16 @@ Improved: {}%
 #ifndef NDEBUG
 			MeshletSum new_sum(*m_Meshlets);
 			MeshletSum increased_sum = (new_sum - sum);
-			std::cout << std::vformat(temp, std::make_format_args(
-				m_MeshFiles[i],
-				increased_sum.v_count,
-				increased_sum.t_count,
-				increased_sum.m_count,
-				increased_sum.meshlet_count,
-				increased_sum.idx_size,
-				increased_sum.meshlet_size,
-				(1.0 - static_cast<double>(increased_sum.meshlet_size) / static_cast<double>(increased_sum.idx_size)) * 100.0
-			)) << std::endl;
+			//std::cout << std::vformat(temp, std::make_format_args(
+			//	m_MeshFiles[i],
+			//	increased_sum.v_count,
+			//	increased_sum.t_count,
+			//	increased_sum.m_count,
+			//	increased_sum.meshlet_count,
+			//	increased_sum.idx_size,
+			//	increased_sum.meshlet_size,
+			//	(1.0 - static_cast<double>(increased_sum.meshlet_size) / static_cast<double>(increased_sum.idx_size)) * 100.0
+			//)) << std::endl;
 
 			sum = sum + increased_sum;
 #endif
@@ -186,15 +186,15 @@ Original indices buffer size: {} bytes
 Meshlet size: {} bytes
 Improved: {}%
 			)";
-		std::cout << std::vformat(temp, std::make_format_args(
-			sum.v_count,
-			sum.t_count,
-			sum.m_count,
-			sum.meshlet_count,
-			sum.idx_size,
-			sum.meshlet_size,
-			(1.0 - static_cast<double>(sum.meshlet_size) / static_cast<double>(sum.idx_size)) * 100.0
-		)) << std::endl;
+		//std::cout << std::vformat(temp, std::make_format_args(
+		//	sum.v_count,
+		//	sum.t_count,
+		//	sum.m_count,
+		//	sum.meshlet_count,
+		//	sum.idx_size,
+		//	sum.meshlet_size,
+		//	(1.0 - static_cast<double>(sum.meshlet_size) / static_cast<double>(sum.idx_size)) * 100.0
+		//)) << std::endl;
 #endif
 	}
 	void Scene::ComputeAtlasTexture()

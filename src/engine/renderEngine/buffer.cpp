@@ -38,7 +38,12 @@ namespace VK_Renderer
 
 		vk::MemoryRequirements mem_requirements = device.GetDevice().getBufferMemoryRequirements(buffer);
 
+		vk::MemoryAllocateFlagsInfo flagInfo = {
+			.flags = vk::MemoryAllocateFlagBits::eDeviceAddress
+		};
+
 		deviceMemory = device.GetDevice().allocateMemory(vk::MemoryAllocateInfo{
+			.pNext = &flagInfo,
 			.allocationSize = mem_requirements.size,
 			.memoryTypeIndex = device.GetMemoryTypeIndex(mem_requirements.memoryTypeBits, properties)
 		});
@@ -108,8 +113,11 @@ namespace VK_Renderer
 	void VK_StagingBuffer::Create(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::SharingMode sharingMode)
 	{
 		vk_Size = size;
-		CreateBuffer(m_Device, vk_Buffer, vk_DeviceMemory, size, usage | vk::BufferUsageFlagBits::eTransferDst, sharingMode, 
-					vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+		vk::Flags< vk::MemoryPropertyFlagBits> memoryPropertyFlagBits =
+			vk::MemoryPropertyFlagBits::eHostVisible |
+			vk::MemoryPropertyFlagBits::eHostCoherent;
+
+		CreateBuffer(m_Device, vk_Buffer, vk_DeviceMemory, size, usage | vk::BufferUsageFlagBits::eTransferDst, sharingMode, memoryPropertyFlagBits);
 
 		vk::Result result = m_Device.GetDevice().mapMemory(vk_DeviceMemory, vk::DeviceSize(0), size, vk::MemoryMapFlags(), &m_MappedMemory);
 		if (result != vk::Result::eSuccess)

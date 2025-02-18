@@ -48,6 +48,11 @@ private:
 	void CreateDescriptors();
 	void CreateGraphicsPipeline();
 
+	// ray tracing related
+	vk::DeviceAddress getBufferDeviceAddress(vk::Buffer const& buffer);
+	void CreateBLAS();
+	void CreateTLAT();
+
 protected:
 	bool b_ShowImGui = true;
 
@@ -75,6 +80,10 @@ protected:
 	uPtr<VK_Renderer::VK_DeviceBuffer> m_VertexIndicesBuffer;
 	uPtr<VK_Renderer::VK_DeviceBuffer> m_PrimitiveIndicesBuffer;
 	uPtr<VK_Renderer::VK_DeviceBuffer> m_VertexBuffer;
+	uPtr<VK_Renderer::VK_DeviceBuffer> m_IndexBuffer;
+	uPtr<VK_Renderer::VK_DeviceBuffer> m_TransformBuffer;
+	uPtr<VK_Renderer::VK_DeviceBuffer> m_BLASBuffer;
+	vk::AccelerationStructureKHR m_BLAS = nullptr;
 
 	uPtr<VK_Renderer::VK_Descriptor> m_CamDescriptor;
 };

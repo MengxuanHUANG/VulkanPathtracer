@@ -15,6 +15,11 @@ struct CameraUBO
 	std::array<glm::vec4, 6> planes;
 };
 
+struct RT_Vertex
+{
+	float position[3];
+};
+
 rayTracingLayer::rayTracingLayer(std::string const& name)
 	: Layer(name)
 {
@@ -51,6 +56,11 @@ void rayTracingLayer::OnAttach()
 
 void rayTracingLayer::OnDetech()
 {
+	if (this->m_BLAS != nullptr)
+	{
+		m_Device->GetDevice().destroyAccelerationStructureKHR(this->m_BLAS);
+		this->m_BLAS = nullptr;
+	}
 }
 
 void rayTracingLayer::OnUpdate(double const& deltaTime)
@@ -187,6 +197,7 @@ void rayTracingLayer::RecordCmd()
 void rayTracingLayer::LoadScene()
 {
 	// TODO: load mesh data
+	CreateBLAS();
 }
 
 void rayTracingLayer::GenBuffers()
@@ -207,4 +218,169 @@ void rayTracingLayer::CreateDescriptors()
 void rayTracingLayer::CreateGraphicsPipeline()
 {
 	// TODO:
+}
+
+uint32_t indexCount = 0;
+
+vk::DeviceAddress rayTracingLayer::getBufferDeviceAddress(vk::Buffer const& buffer)
+{
+	vk::BufferDeviceAddressInfoKHR bufferDeviceAddressInfo = {
+		.buffer = buffer
+	};
+	return m_Device->GetDevice().getBufferAddressKHR(bufferDeviceAddressInfo);
+}
+
+void rayTracingLayer::CreateBLAS()
+{
+	uint32_t numTriangles = 1;
+	std::vector<RT_Vertex> vertices = {
+		{ {  1.0f,  1.0f, 0.0f } },
+		{ { -1.0f,  1.0f, 0.0f } },
+		{ {  0.0f, -1.0f, 0.0f } }
+	};
+
+	std::vector<uint32_t> indices = { 0, 1, 2 };
+	uint32_t indexCount = static_cast<uint32_t>(indices.size());
+
+	// transformation
+	vk::TransformMatrixKHR transform;
+	transform.setMatrix(std::array<std::array<float, 4>, 3>({
+			{1.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 1.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f, 0.0f}
+	}));
+
+	m_VertexBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	m_IndexBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	m_TransformBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	
+	// buffer usage bits
+	vk::Flags<vk::BufferUsageFlagBits> bufferUsageBit = 
+		vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | 
+		vk::BufferUsageFlagBits::eShaderDeviceAddressKHR;
+
+	m_VertexBuffer->CreateFromData(
+		vertices.data(),
+		vertices.size() * sizeof(RT_Vertex),
+		bufferUsageBit,
+		vk::SharingMode::eExclusive
+	);
+
+	m_IndexBuffer->CreateFromData(
+		indices.data(),
+		indices.size() * sizeof(uint32_t),
+		bufferUsageBit,
+		vk::SharingMode::eExclusive
+	);
+
+	m_TransformBuffer->CreateFromData(
+		transform.matrix.data(),
+		sizeof(vk::TransformMatrixKHR),
+		bufferUsageBit,
+		vk::SharingMode::eExclusive
+	);
+
+	vk::DeviceAddress vertexBufferAddr		= this->getBufferDeviceAddress(m_VertexBuffer->GetBuffer());
+	vk::DeviceAddress indexBufferAddr		= this->getBufferDeviceAddress(m_IndexBuffer->GetBuffer());
+	vk::DeviceAddress transformBufferAddr	= this->getBufferDeviceAddress(m_TransformBuffer->GetBuffer());
+
+	// Create BLAS
+	vk::AccelerationStructureGeometryKHR asGeometry = {
+		.geometryType = vk::GeometryTypeKHR::eTriangles,
+		.geometry = {
+			.triangles = {
+				.vertexFormat = vk::Format::eR32G32B32Sfloat,
+				.vertexData = vertexBufferAddr,
+				.vertexStride = sizeof(Vertex),
+				.maxVertex = 2,
+				.indexType = vk::IndexType::eUint32,
+				.indexData = indexBufferAddr,
+				.transformData = transformBufferAddr
+			}
+		},
+		.flags = vk::GeometryFlagBitsKHR::eOpaque,
+	};
+	vk::AccelerationStructureBuildGeometryInfoKHR asBuildGeometryInfo = {
+		.type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+		.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
+		.mode = vk::BuildAccelerationStructureModeKHR::eBuild,
+		.geometryCount = 1,
+		.pGeometries = &asGeometry,
+	};
+
+	//VULKAN_HPP_DEFAULT_DISPATCHER.init(m_Device->GetDevice());
+
+	//vk::DispatchLoaderDynamic dldid(m_Engine->GetInstance()->vk_Instance, vkGetInstanceProcAddr, m_Device->GetDevice());
+
+	vk::AccelerationStructureBuildSizesInfoKHR const sizeInfo =  m_Device->GetDevice().getAccelerationStructureBuildSizesKHR(
+		vk::AccelerationStructureBuildTypeKHR::eDevice,
+		asBuildGeometryInfo,
+		numTriangles
+	);
+	// bottom level acceleration structure buffer
+	m_BLASBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	m_BLASBuffer->Create(
+		sizeInfo.accelerationStructureSize, 
+		vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
+		vk::SharingMode::eExclusive
+	);
+	
+	vk::AccelerationStructureCreateInfoKHR asCreateInfo = {
+		.buffer = m_BLASBuffer->GetBuffer(),
+		.size = sizeInfo.accelerationStructureSize,
+		.type = vk::AccelerationStructureTypeKHR::eBottomLevel
+	};
+
+	this->m_BLAS = m_Device->GetDevice().createAccelerationStructureKHR(asCreateInfo);
+
+	// create strachBuffer
+	uPtr<VK_Renderer::VK_DeviceBuffer> sratchBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	sratchBuffer->Create(
+		sizeInfo.buildScratchSize,
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
+		vk::SharingMode::eExclusive
+	);
+
+	vk::AccelerationStructureBuildGeometryInfoKHR const asBuildGeomInfo = {
+		.type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+		.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
+		.mode = vk::BuildAccelerationStructureModeKHR::eBuild,
+		.dstAccelerationStructure = this->m_BLAS,
+		.geometryCount = 1,
+		.pGeometries = &asGeometry,
+		.scratchData = {
+			.deviceAddress = this->getBufferDeviceAddress(sratchBuffer->GetBuffer())
+		}
+	};
+
+	vk::AccelerationStructureBuildRangeInfoKHR const asBuildRangeInfo = {
+		.primitiveCount = numTriangles,
+		.primitiveOffset = 0,
+		.firstVertex = 0,
+		.transformOffset = 0
+	};
+
+	std::vector<vk::AccelerationStructureBuildRangeInfoKHR const *> asBuildRangeInfos = {
+		&asBuildRangeInfo
+	};
+
+	VK_CommandBuffer cmd = m_Device->GetTransferCommandPool()->AllocateCommandBuffers();
+	cmd.Begin({ .usage = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	cmd[0].buildAccelerationStructuresKHR(
+		static_cast<uint32_t>(1),
+		&asBuildGeomInfo,
+		asBuildRangeInfos.data()
+	);
+	cmd.End();
+
+	m_Device->GetTransferQueue().submit(vk::SubmitInfo{
+		.commandBufferCount = 1,
+		.pCommandBuffers = &(cmd[0])
+		});
+
+	m_Device->GetTransferQueue().waitIdle();
+}
+
+void rayTracingLayer::CreateTLAT()
+{
 }

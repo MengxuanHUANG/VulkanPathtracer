@@ -50,7 +50,8 @@ namespace MyCore
 			VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 			VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
 			VK_KHR_RAY_QUERY_EXTENSION_NAME,
-			VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME
+			VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+			VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
 		};
 		vk::StructureChain<vk::PhysicalDeviceFeatures2, 
 							vk::PhysicalDeviceMeshShaderFeaturesEXT,
@@ -61,7 +62,8 @@ namespace MyCore
 							vk::PhysicalDeviceNestedCommandBufferFeaturesEXT, 
 							vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
 							vk::PhysicalDeviceRayTracingPipelineFeaturesKHR,
-							vk::PhysicalDeviceRayQueryFeaturesKHR> ext_chain;
+							vk::PhysicalDeviceRayQueryFeaturesKHR,
+							vk::PhysicalDeviceBufferDeviceAddressFeaturesKHR> ext_chain;
 		
 		int width, height;
 		SDL_GetWindowSize(window, &width, &height);

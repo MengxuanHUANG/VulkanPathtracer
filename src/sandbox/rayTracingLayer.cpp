@@ -61,6 +61,12 @@ void rayTracingLayer::OnDetech()
 		m_Device->GetDevice().destroyAccelerationStructureKHR(this->m_BLAS);
 		this->m_BLAS = nullptr;
 	}
+
+	if (this->m_TLAS != nullptr)
+	{
+		m_Device->GetDevice().destroyAccelerationStructureKHR(this->m_TLAS);
+		this->m_TLAS = nullptr;
+	}
 }
 
 void rayTracingLayer::OnUpdate(double const& deltaTime)
@@ -197,7 +203,8 @@ void rayTracingLayer::RecordCmd()
 void rayTracingLayer::LoadScene()
 {
 	// TODO: load mesh data
-	CreateBLAS();
+	this->CreateBLAS();
+	this->CreateTLAS();
 }
 
 void rayTracingLayer::GenBuffers()
@@ -379,8 +386,127 @@ void rayTracingLayer::CreateBLAS()
 		});
 
 	m_Device->GetTransferQueue().waitIdle();
+
+	vk::AccelerationStructureDeviceAddressInfoKHR asDeviceAddrInfo;
+	asDeviceAddrInfo.setAccelerationStructure(this->m_BLAS);
+
+	this->m_BLAS_deviceAddr = this->m_Device->GetDevice().getAccelerationStructureAddressKHR(asDeviceAddrInfo);
 }
 
-void rayTracingLayer::CreateTLAT()
+void rayTracingLayer::CreateTLAS()
 {
+	// transformation
+	vk::TransformMatrixKHR transform;
+	transform.setMatrix(std::array<std::array<float, 4>, 3>({
+			{1.0f, 0.0f, 0.0f, 0.0f},
+			{0.0f, 1.0f, 0.0f, 0.0f},
+			{0.0f, 0.0f, 1.0f, 0.0f}
+	}));
+
+	// Acceleration Structure Instance
+	vk::AccelerationStructureInstanceKHR vkInstance;
+	vkInstance.setTransform(transform).
+		setInstanceCustomIndex(0).
+		setMask(0xFF).
+		setInstanceShaderBindingTableRecordOffset(0).
+		setFlags(vk::GeometryInstanceFlagBitsKHR::eTriangleFacingCullDisable).
+		setAccelerationStructureReference(this->m_BLAS_deviceAddr);
+
+	// Buffer of instacne
+	uPtr<VK_Renderer::VK_DeviceBuffer> instanceBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	instanceBuffer->CreateFromData(
+		&vkInstance,
+		sizeof(vk::AccelerationStructureInstanceKHR),
+		vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
+		vk::SharingMode::eExclusive
+	);
+
+	// asGeometry
+	vk::AccelerationStructureGeometryDataKHR asGeometryData{
+		.instances = {
+			.arrayOfPointers = vk::False,
+			.data = this->getBufferDeviceAddress(instanceBuffer->GetBuffer())
+		}
+	};
+
+	vk::AccelerationStructureGeometryKHR asGeometry;
+	asGeometry.setGeometryType(vk::GeometryTypeKHR::eInstances)
+		.setFlags(vk::GeometryFlagBitsKHR::eOpaque)
+		.setGeometry(asGeometryData);
+	
+	// get TLAS Size
+	vk::AccelerationStructureBuildGeometryInfoKHR asBuildGeometryInfo;
+	asBuildGeometryInfo.setType(vk::AccelerationStructureTypeKHR::eTopLevel)
+		.setFlags(vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace)
+		.setGeometryCount(1)
+		.setPGeometries(&asGeometry);
+
+	uint32_t primitiveCount = 1;
+
+	vk::AccelerationStructureBuildSizesInfoKHR buildSizeInfo = this->m_Device->GetDevice().getAccelerationStructureBuildSizesKHR(
+		vk::AccelerationStructureBuildTypeKHR::eDevice, 
+		asBuildGeometryInfo, 
+		primitiveCount
+	);
+
+	// bottom level acceleration structure buffer
+	m_TLASBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	m_TLASBuffer->Create(
+		buildSizeInfo.accelerationStructureSize,
+		vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
+		vk::SharingMode::eExclusive
+	);
+
+	vk::AccelerationStructureCreateInfoKHR asCreateInfo = {
+		.buffer = m_TLASBuffer->GetBuffer(),
+		.size = buildSizeInfo.accelerationStructureSize,
+		.type = vk::AccelerationStructureTypeKHR::eTopLevel
+	};
+
+	this->m_TLAS = m_Device->GetDevice().createAccelerationStructureKHR(asCreateInfo);
+
+	// create strachBuffer
+	uPtr<VK_Renderer::VK_DeviceBuffer> sratchBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	sratchBuffer->Create(
+		buildSizeInfo.buildScratchSize,
+		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
+		vk::SharingMode::eExclusive
+	);
+
+	asBuildGeometryInfo.setMode(vk::BuildAccelerationStructureModeKHR::eBuild)
+		.setDstAccelerationStructure(this->m_TLAS)
+		.setPGeometries(&asGeometry)
+		.setScratchData({
+			.deviceAddress = this->getBufferDeviceAddress(sratchBuffer->GetBuffer())
+		});
+
+	vk::AccelerationStructureBuildRangeInfoKHR asBuildRangeInfo;
+	asBuildRangeInfo.setPrimitiveCount(primitiveCount)
+		.setPrimitiveCount(0)
+		.setFirstVertex(0)
+		.setTransformOffset(0);
+
+	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> buildStructureRangeInfo{ &asBuildRangeInfo };
+
+
+	VK_CommandBuffer cmd = m_Device->GetTransferCommandPool()->AllocateCommandBuffers();
+	cmd.Begin({ .usage = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	cmd[0].buildAccelerationStructuresKHR(
+		static_cast<uint32_t>(1),
+		&asBuildGeometryInfo,
+		buildStructureRangeInfo.data()
+	);
+	cmd.End();
+
+	m_Device->GetTransferQueue().submit(vk::SubmitInfo{
+		.commandBufferCount = 1,
+		.pCommandBuffers = &(cmd[0])
+		});
+
+	m_Device->GetTransferQueue().waitIdle();
+
+	vk::AccelerationStructureDeviceAddressInfoKHR asDeviceAddrInfo;
+	asDeviceAddrInfo.setAccelerationStructure(this->m_TLAS);
+
+	this->m_TLAS_deviceAddr = this->m_Device->GetDevice().getAccelerationStructureAddressKHR(asDeviceAddrInfo);
 }

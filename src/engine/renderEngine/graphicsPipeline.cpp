@@ -212,12 +212,10 @@ namespace VK_Renderer
 
 			vk::PipelineShaderStageCreateInfo shaderStageCreateInfo;
 			shaderStageCreateInfo.setStage(shaderInfo.shaderStage)
-				.setModule(shaderModules.back().get());
+				.setModule(shaderModules.back().get())
+				.setPName("main");
 
-			shaderStagesCreateInfo.push_back(vk::PipelineShaderStageCreateInfo{
-				.stage = shaderInfo.shaderStage,
-				.module = shaderModules.back().get(),
-			});
+			shaderStagesCreateInfo.push_back(shaderStageCreateInfo);
 			shaderGroupsCreateInfo.push_back(this->getRtShaderGroupCreateInfoKHR(shaderModules.size() - 1, shaderInfo.shaderStage));
 		}
 		

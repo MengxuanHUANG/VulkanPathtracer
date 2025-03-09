@@ -55,9 +55,15 @@ void rayTracingLayer::OnAttach()
 
 	this->UpdateRtDescriptorSet();
 
-	// TODO: create ray tracing pipeline
-	m_RayTracingPipeline = mkU< VK_Renderer::VK_GraphicsPipeline>(*m_Device, *m_Engine->GetRenderPass());
-	//this->CreateRayTracingPipeline();
+	this->CreateRayTracingPipeline();
+
+	// get Physical device properties
+	vk::PhysicalDeviceProperties2 p2{
+		.pNext = &this->m_RtPipelineProperties
+	};
+	this->m_Device->GetPhysicalDevice().getProperties2(&p2);
+
+	this->CreateShaderBindingTable();
 
 	//RecordCmd();
 	//m_Engine->PushSecondaryCommandAll((*m_Cmd)[0]);
@@ -228,11 +234,6 @@ void rayTracingLayer::GenTextures()
 }
 
 void rayTracingLayer::CreateDescriptors()
-{
-	// TODO:
-}
-
-void rayTracingLayer::CreateGraphicsPipeline()
 {
 	// TODO:
 }
@@ -544,23 +545,101 @@ void rayTracingLayer::UpdateRtDescriptorSet()
 				}
 			},
 		});
+
+		this->m_RtDescriptorSetLayout = m_RtDescriptorSets[i]->GetDescriptorSetLayout();
 	}
 }
 
 void rayTracingLayer::CreateRayTracingPipeline()
 {
-	// TODO: 
-	// Since there are multiple frameBuffers, 
-	// the storage images used as ray tracing pipeline output are bind to different descriptor set layouts.
-	// Therefore, maybe multiple rtPipeline are needed.
-	m_RayTracingPipeline->CreateRayTracingPipeline({
+	m_RtPipeline = mkU< VK_Renderer::VK_GraphicsPipeline>(*m_Device, *m_Engine->GetRenderPass());
+	m_RtPipeline->CreateRayTracingPipeline({
 		.descriptorSetsLayout = {
+			this->m_RtDescriptorSetLayout
 		},
 		.shadersInfo = {
-			{.shaderStage = vk::ShaderStageFlagBits::eRaygenKHR, .shaderPath = ""},
-			{.shaderStage = vk::ShaderStageFlagBits::eClosestHitKHR, .shaderPath = ""},
-			{.shaderStage = vk::ShaderStageFlagBits::eMissKHR, .shaderPath = ""},
+			{.shaderStage = vk::ShaderStageFlagBits::eRaygenKHR, .shaderPath = "shaders/simple.rgen.spv"},
+			{.shaderStage = vk::ShaderStageFlagBits::eClosestHitKHR, .shaderPath = "shaders/simple.rchit.spv"},
+			{.shaderStage = vk::ShaderStageFlagBits::eMissKHR, .shaderPath = "shaders/simple.rmiss.spv"},
 		}
 	});
+}
+
+uint32_t align_up(uint32_t const& handleSize, uint32_t const& alignment)
+{
+	return (handleSize + (alignment - 1)) & ~(alignment - 1);
+}
+
+void rayTracingLayer::CreateShaderBindingTable()
+{
+	uint32_t const rayGenGroupCount{ 1 }; // always only 1 ray gen group
+	uint32_t missGroupCount{ 1 };
+	uint32_t hitGroupCount{ 1 };
+	uint32_t const handleCount = rayGenGroupCount + missGroupCount + hitGroupCount;
+
+	// compute handleSizeAligned 
+	uint32_t const handleSize = m_RtPipelineProperties.shaderGroupHandleSize;
+	uint32_t const alignedSize = align_up(handleSize, m_RtPipelineProperties.shaderGroupHandleAlignment);
+
+	// get raytracing shader group handle
+	uint32_t const sbtSize = handleCount * alignedSize;
+	uint32_t const firstGroup = 0;
+	std::vector<uint8_t> shaderHandles(sbtSize);
+	m_Device->GetDevice().getRayTracingShaderGroupHandlesKHR(this->m_RtPipeline->GetPipeline(), firstGroup, handleCount, sbtSize, shaderHandles.data());
+
+	// addr Region
+	m_rgenRegion
+		.setStride(align_up(alignedSize, m_RtPipelineProperties.shaderGroupBaseAlignment))
+		.setSize(m_rgenRegion.stride);
+	m_rmissRegion
+		.setStride(alignedSize)
+		.setSize(align_up(missGroupCount * alignedSize, m_RtPipelineProperties.shaderGroupBaseAlignment));
+	m_rchitRegion
+		.setStride(alignedSize)
+		.setSize(align_up(hitGroupCount * alignedSize, m_RtPipelineProperties.shaderGroupBaseAlignment));
+
+
+	vk::DeviceSize sbtBufferSize = m_rgenRegion.size + m_rmissRegion.size + m_rchitRegion.size + m_rcallRegion.size;
+
+	m_RtSBTBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
+	m_RtSBTBuffer->Create(
+		sbtBufferSize,
+		vk::BufferUsageFlagBits::eTransferDst |
+		vk::BufferUsageFlagBits::eShaderDeviceAddress |
+		vk::BufferUsageFlagBits::eShaderBindingTableKHR,
+		vk::SharingMode::eExclusive);
+
+	// Find the SBT addresses of each group
+	vk::BufferDeviceAddressInfo info;
+	vk::DeviceAddress sbtAddress = this->getBufferDeviceAddress(m_RtSBTBuffer->GetBuffer());
+	m_rgenRegion.setDeviceAddress(sbtAddress);
+	m_rmissRegion.setDeviceAddress(sbtAddress + m_rgenRegion.size);
+	m_rchitRegion.setDeviceAddress(sbtAddress + m_rgenRegion.size + m_rmissRegion.size);
+
+	// Helper to retrieve the handle data
+	auto getHandle = [&](int i) { return shaderHandles.data() + i * handleSize; };
+
+	// copy data to buffer
+	vk::DeviceSize offset = 0;
+	uint32_t handleIdx{ 0 };
+	
+	// copy raygen
+	m_RtSBTBuffer->Update(getHandle(handleIdx++), offset, handleSize);
+
+	// copy rmiss
+	offset = m_rgenRegion.size;
+	for (int i = 0; i < missGroupCount; ++i)
+	{
+		m_RtSBTBuffer->Update(getHandle(handleIdx++), offset, handleSize);
+		offset += m_rmissRegion.stride;
+	}
+
+	// copy rchit
+	offset = m_rgenRegion.size + m_rmissRegion.size;
+	for (int i = 0; i < hitGroupCount; ++i)
+	{
+		m_RtSBTBuffer->Update(getHandle(handleIdx++), offset, handleSize);
+		offset += m_rchitRegion.stride;
+	}
 }
 

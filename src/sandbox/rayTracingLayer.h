@@ -46,7 +46,6 @@ private:
 	void GenBuffers();
 	void GenTextures();
 	void CreateDescriptors();
-	void CreateGraphicsPipeline();
 
 	// ray tracing related
 	vk::DeviceAddress getBufferDeviceAddress(vk::Buffer const& buffer);
@@ -55,6 +54,7 @@ private:
 
 	void UpdateRtDescriptorSet();
 	void CreateRayTracingPipeline();
+	void CreateShaderBindingTable();
 
 protected:
 	bool b_ShowImGui = true;
@@ -98,8 +98,17 @@ protected:
 
 	// RayTracing Descriptor Set
 	std::vector<uPtr<VK_Renderer::VK_Descriptor>> m_RtDescriptorSets;
+	vk::DescriptorSetLayout m_RtDescriptorSetLayout;
 
 	uPtr<VK_Renderer::VK_Descriptor> m_CamDescriptor;
 
-	uPtr<VK_Renderer::VK_GraphicsPipeline> m_RayTracingPipeline;
+	uPtr<VK_Renderer::VK_GraphicsPipeline> m_RtPipeline;
+
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR m_RtPipelineProperties;
+
+	uPtr<VK_Renderer::VK_DeviceBuffer> m_RtSBTBuffer;
+	vk::StridedDeviceAddressRegionKHR m_rgenRegion;
+	vk::StridedDeviceAddressRegionKHR m_rmissRegion;
+	vk::StridedDeviceAddressRegionKHR m_rchitRegion;
+	vk::StridedDeviceAddressRegionKHR m_rcallRegion;
 };

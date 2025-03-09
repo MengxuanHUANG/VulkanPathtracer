@@ -4,6 +4,9 @@ file(GLOB_RECURSE Shader_Sources
 	"shaders/*.comp"
 	"shaders/*.mesh"
 	"shaders/*.task"
+	"shaders/*.rgen"
+	"shaders/*.rmiss"
+	"shaders/*.rchit"
 )
 
 file(GLOB_RECURSE IMAGES

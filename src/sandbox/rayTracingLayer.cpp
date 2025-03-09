@@ -45,9 +45,19 @@ void rayTracingLayer::OnAttach()
 	// TODO: load Meshes
 	this->LoadScene();
 
-	// TODO: create AccelerationStructure
+	// Create Ray tracing related 
+	size_t const& frameCount = this->m_Swapchain->vk_SwapchainImages.size();
+	m_RtDescriptorSets.reserve(frameCount);
+	for (int i = 0; i < frameCount; ++i)
+	{
+		m_RtDescriptorSets.emplace_back(mkU<VK_Renderer::VK_Descriptor>(*m_Device));
+	}
+
+	this->UpdateRtDescriptorSet();
 
 	// TODO: create ray tracing pipeline
+	m_RayTracingPipeline = mkU< VK_Renderer::VK_GraphicsPipeline>(*m_Device, *m_Engine->GetRenderPass());
+	//this->CreateRayTracingPipeline();
 
 	//RecordCmd();
 	//m_Engine->PushSecondaryCommandAll((*m_Cmd)[0]);
@@ -226,8 +236,6 @@ void rayTracingLayer::CreateGraphicsPipeline()
 {
 	// TODO:
 }
-
-uint32_t indexCount = 0;
 
 vk::DeviceAddress rayTracingLayer::getBufferDeviceAddress(vk::Buffer const& buffer)
 {
@@ -510,3 +518,49 @@ void rayTracingLayer::CreateTLAS()
 
 	this->m_TLAS_deviceAddr = this->m_Device->GetDevice().getAccelerationStructureAddressKHR(asDeviceAddrInfo);
 }
+
+void rayTracingLayer::UpdateRtDescriptorSet()
+{
+	vk::WriteDescriptorSetAccelerationStructureKHR writeDescriptorSetAS;
+	writeDescriptorSetAS.setAccelerationStructureCount(1)
+		.setPAccelerationStructures(&(this->m_TLAS));
+
+	size_t const& frameCount = this->m_Swapchain->vk_SwapchainImages.size();
+	for (int i = 0; i < frameCount; ++i)
+	{
+		// Update Accleration Structure
+		m_RtDescriptorSets[i]->Create({
+			VK_DescriptorBinding{
+				.pNext = &writeDescriptorSetAS,
+				.type = vk::DescriptorType::eAccelerationStructureKHR,
+				.stage = vk::ShaderStageFlagBits::eRaygenKHR,
+			},
+			VK_DescriptorBinding{
+				.type = vk::DescriptorType::eStorageImage,
+				.stage = vk::ShaderStageFlagBits::eRaygenKHR,
+				.imageInfo = vk::DescriptorImageInfo{
+					.imageView = this->m_Swapchain->vk_SwapchainImageViews[i],
+					.imageLayout = vk::ImageLayout::eGeneral,
+				}
+			},
+		});
+	}
+}
+
+void rayTracingLayer::CreateRayTracingPipeline()
+{
+	// TODO: 
+	// Since there are multiple frameBuffers, 
+	// the storage images used as ray tracing pipeline output are bind to different descriptor set layouts.
+	// Therefore, maybe multiple rtPipeline are needed.
+	m_RayTracingPipeline->CreateRayTracingPipeline({
+		.descriptorSetsLayout = {
+		},
+		.shadersInfo = {
+			{.shaderStage = vk::ShaderStageFlagBits::eRaygenKHR, .shaderPath = ""},
+			{.shaderStage = vk::ShaderStageFlagBits::eClosestHitKHR, .shaderPath = ""},
+			{.shaderStage = vk::ShaderStageFlagBits::eMissKHR, .shaderPath = ""},
+		}
+	});
+}
+

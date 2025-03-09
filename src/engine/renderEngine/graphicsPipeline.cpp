@@ -188,4 +188,92 @@ namespace VK_Renderer
 
 		CreatePipeline({ .renderPass = m_RenderPass.GetRenderPass() }, shader_stages, input, createInfo.descriptorSetsLayout);
 	}
+
+	void VK_GraphicsPipeline::CreateRayTracingPipeline(RayTracingPipelineCreateInfo const& createInfo)
+	{
+		// shader modules
+		std::vector< vk::UniqueShaderModule> shaderModules;
+		shaderModules.reserve(createInfo.shadersInfo.size());
+
+		// Shader Stages
+		std::vector<vk::PipelineShaderStageCreateInfo> shaderStagesCreateInfo;
+		
+		// Shader Groups
+		std::vector<vk::RayTracingShaderGroupCreateInfoKHR> shaderGroupsCreateInfo;
+
+		for (ShaderInfo const& shaderInfo : createInfo.shadersInfo)
+		{
+			auto shader_data = ReadFile(shaderInfo.shaderPath);
+			
+			shaderModules.emplace_back(m_Device.GetDevice().createShaderModuleUnique(vk::ShaderModuleCreateInfo{
+				.codeSize = shader_data.size(),
+				.pCode = reinterpret_cast<const uint32_t*>(shader_data.data())
+			}));
+
+			vk::PipelineShaderStageCreateInfo shaderStageCreateInfo;
+			shaderStageCreateInfo.setStage(shaderInfo.shaderStage)
+				.setModule(shaderModules.back().get());
+
+			shaderStagesCreateInfo.push_back(vk::PipelineShaderStageCreateInfo{
+				.stage = shaderInfo.shaderStage,
+				.module = shaderModules.back().get(),
+			});
+			shaderGroupsCreateInfo.push_back(this->getRtShaderGroupCreateInfoKHR(shaderModules.size() - 1, shaderInfo.shaderStage));
+		}
+		
+		vk::PipelineLayoutCreateInfo pipelineLayoutCreateInfo;
+		pipelineLayoutCreateInfo
+			.setPSetLayouts(createInfo.descriptorSetsLayout.data())
+			.setSetLayoutCount(createInfo.descriptorSetsLayout.size());
+		vk_UniqueLayout = m_Device.GetDevice().createPipelineLayoutUnique(pipelineLayoutCreateInfo);
+
+		// create Ray Tracing Pipeline
+		vk::RayTracingPipelineCreateInfoKHR rtPipelineCreateInfo;
+		rtPipelineCreateInfo
+			.setStageCount(shaderStagesCreateInfo.size())
+			.setPStages(shaderStagesCreateInfo.data())
+			.setGroupCount(shaderGroupsCreateInfo.size())
+			.setPGroups(shaderGroupsCreateInfo.data())
+			.setMaxPipelineRayRecursionDepth(createInfo.maxPipelineRayRecursionDepth)
+			.setLayout(vk_UniqueLayout.get());
+		
+		// Create Pipeline
+		vk::ResultValue<vk::UniquePipeline> result = m_Device.GetDevice().createRayTracingPipelineKHRUnique(nullptr, nullptr, rtPipelineCreateInfo);
+		if (result.result != vk::Result::eSuccess) {
+			throw std::runtime_error("Failed to create ray tracing pipeline");
+		}
+		vk_UniquePipeline = std::move(result.value);
+		vk_Pipeline = vk_UniquePipeline.get();
+	}
+
+	vk::RayTracingShaderGroupCreateInfoKHR VK_GraphicsPipeline::getRtShaderGroupCreateInfoKHR(uint32_t const& shaderIdx, vk::ShaderStageFlagBits const& shaderStage)
+	{
+		vk::RayTracingShaderGroupCreateInfoKHR rtShaderGroupCreateInfo;
+
+		switch (shaderStage)
+		{
+			case vk::ShaderStageFlagBits::eRaygenKHR:
+			{
+				rtShaderGroupCreateInfo.setType(vk::RayTracingShaderGroupTypeKHR::eGeneral)
+					.setGeneralShader(shaderIdx);
+				break;
+			}
+			case vk::ShaderStageFlagBits::eMissKHR:
+			{
+				rtShaderGroupCreateInfo.setType(vk::RayTracingShaderGroupTypeKHR::eGeneral)
+					.setGeneralShader(shaderIdx);
+				break;
+			}
+			case vk::ShaderStageFlagBits::eClosestHitKHR:
+			{
+				rtShaderGroupCreateInfo.setType(vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup)
+					.setClosestHitShader(shaderIdx);
+				break;
+			}
+			default:
+				break;
+		}
+
+		return rtShaderGroupCreateInfo;
+	}
 }

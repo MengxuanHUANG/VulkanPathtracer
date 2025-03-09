@@ -10,6 +10,7 @@ namespace VK_Renderer
 
 	struct VK_DescriptorBinding
 	{
+		void const* pNext = nullptr;
 		vk::DescriptorType type;
 		vk::ShaderStageFlags stage;
 		vk::DescriptorBufferInfo bufferInfo {};

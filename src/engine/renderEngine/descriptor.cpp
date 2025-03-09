@@ -38,9 +38,12 @@ namespace VK_Renderer
 			.pSetLayouts = &vk_DescriptorSetLayout
 		})[0];
 
+		std::vector<vk::WriteDescriptorSet> writeDescriptorSets;
+		writeDescriptorSets.reserve(bindings.size());
 		for (uint32_t i = 0; i < bindings.size(); ++i)
 		{
-			m_Device.GetDevice().updateDescriptorSets(vk::WriteDescriptorSet{
+			writeDescriptorSets.emplace_back(vk::WriteDescriptorSet{
+				.pNext = bindings[i].pNext,
 				.dstSet = vk_DescriptorSet,
 				.dstBinding = i,
 				.dstArrayElement = 0,
@@ -48,8 +51,9 @@ namespace VK_Renderer
 				.descriptorType = bindings[i].type,
 				.pImageInfo = &bindings[i].imageInfo,
 				.pBufferInfo = &bindings[i].bufferInfo,
-			}, nullptr);
+			});
 		}
+		m_Device.GetDevice().updateDescriptorSets(static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 	}
 	void VK_Descriptor::Free()
 	{

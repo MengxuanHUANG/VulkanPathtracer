@@ -39,7 +39,7 @@ namespace VK_Renderer
 			.imageColorSpace = surface_format.colorSpace,
 			.imageExtent = vk_ImageExtent,
 			.imageArrayLayers = 1,
-			.imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+			.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage,
 			.preTransform = details.cpabilities.currentTransform,
 			.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
 			.presentMode = present_mode,

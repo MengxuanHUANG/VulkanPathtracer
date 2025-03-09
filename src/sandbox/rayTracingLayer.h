@@ -53,6 +53,9 @@ private:
 	void CreateBLAS();
 	void CreateTLAS();
 
+	void UpdateRtDescriptorSet();
+	void CreateRayTracingPipeline();
+
 protected:
 	bool b_ShowImGui = true;
 
@@ -93,5 +96,10 @@ protected:
 	vk::AccelerationStructureKHR m_TLAS = nullptr;
 	uint32_t m_TLAS_deviceAddr = 0;
 
+	// RayTracing Descriptor Set
+	std::vector<uPtr<VK_Renderer::VK_Descriptor>> m_RtDescriptorSets;
+
 	uPtr<VK_Renderer::VK_Descriptor> m_CamDescriptor;
+
+	uPtr<VK_Renderer::VK_GraphicsPipeline> m_RayTracingPipeline;
 };

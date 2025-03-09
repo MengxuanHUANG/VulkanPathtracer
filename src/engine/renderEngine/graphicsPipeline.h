@@ -23,6 +23,19 @@ namespace VK_Renderer
 		std::string const& fragShaderPath;
 	};
 
+	struct ShaderInfo
+	{
+		vk::ShaderStageFlagBits shaderStage;
+		std::string const& shaderPath;
+	};
+
+	struct RayTracingPipelineCreateInfo
+	{
+		uint32_t const maxPipelineRayRecursionDepth = 1;
+		std::vector<vk::DescriptorSetLayout> const& descriptorSetsLayout;
+		std::vector<ShaderInfo> const& shadersInfo;
+	};
+
 	class VK_GraphicsPipeline
 	{
 	public:
@@ -38,6 +51,10 @@ namespace VK_Renderer
 									std::vector<vk::DescriptorSetLayout> const& descripotrSetLayouts);
 
 		void CreateMeshPipeline(MeshPipelineCreateInfo const& createInfo);
+		void CreateRayTracingPipeline(RayTracingPipelineCreateInfo const& createInfo);
+	
+	protected:
+		vk::RayTracingShaderGroupCreateInfoKHR getRtShaderGroupCreateInfoKHR(uint32_t const& shaderIdx, vk::ShaderStageFlagBits const& shaderStage);
 
 	protected:
 		VK_Device const& m_Device;

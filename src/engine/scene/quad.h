@@ -1,3 +1,4 @@
+#pragma once
 #include "mesh.h"
 
 namespace VK_Renderer

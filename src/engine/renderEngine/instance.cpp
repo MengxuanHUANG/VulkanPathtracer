@@ -15,10 +15,10 @@ namespace VK_Renderer
 		"VK_LAYER_KHRONOS_validation"
 	};
 	
-	static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallBack(
-		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallBack(
+		vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+		vk::DebugUtilsMessageTypeFlagsEXT messageType,
+		vk::DebugUtilsMessengerCallbackDataEXT const* pCallbackData,
 		void* pUserData
 	)
 	{

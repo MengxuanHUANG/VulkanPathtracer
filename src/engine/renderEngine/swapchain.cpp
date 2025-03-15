@@ -67,6 +67,7 @@ namespace VK_Renderer
 		}
 
 		vk_SwapchainImages = m_Device.GetDevice().getSwapchainImagesKHR(vk_Swapchain);
+		this->m_ImageCount = vk_SwapchainImages.size();
 
 		CreateImageViews();
 

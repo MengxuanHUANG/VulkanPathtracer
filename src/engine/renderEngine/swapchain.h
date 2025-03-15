@@ -32,6 +32,7 @@ namespace VK_Renderer
 		const VK_Device& m_Device;
 		vk::SurfaceKHR vk_Surface;
 
+		DeclareWithGetFunc(protected, uint32_t, m, ImageCount, const);
 		DeclareWithGetFunc(protected, uint32_t, m, ImageIdx, const);
 		DeclareWithGetFunc(protected, vk::Semaphore, vk, ImageAviableSemaphore, const);
 

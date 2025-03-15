@@ -40,8 +40,10 @@ void rayTracingLayer::OnAttach()
 	m_Device = m_Engine->GetDevice();
 	m_Swapchain = m_Engine->GetSwapchain();
 
-	m_Cmd = mkU<VK_CommandBuffer>(m_Device->GetGraphicsCommandPool()->AllocateCommandBuffers({ .level = vk::CommandBufferLevel::eSecondary }));
-
+	m_Cmds = mkU<VK_CommandBuffer>(m_Device->GetGraphicsCommandPool()->AllocateCommandBuffers({
+		.count = m_Swapchain->GetImageCount(),
+		.level = vk::CommandBufferLevel::eSecondary
+	}));
 	// TODO: load Meshes
 	this->LoadScene();
 
@@ -65,9 +67,11 @@ void rayTracingLayer::OnAttach()
 
 	this->CreateShaderBindingTable();
 
-	//RecordCmd();
-	//m_Engine->PushSecondaryCommandAll((*m_Cmd)[0]);
-
+	RecordCmd();
+	//m_Engine->PushSecondaryCommandAll(m_Cmds);
+	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i) {
+		m_Engine->PushSecondaryCommand((*m_Cmds)[i], i);
+	}
 }
 
 void rayTracingLayer::OnDetech()
@@ -200,19 +204,35 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 
 void rayTracingLayer::RecordCmd()
 {
-	VK_CommandBuffer& cmd = *m_Cmd;
-	cmd.Reset();
+	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i)
 	{
-		// TODO: record ray tracing related commond
-		/*
-		cmd.Begin({ .usage = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
-			.inheritInfo = {
-				.renderPass = Application::GetInstance()->GetRenderEngine()->GetRenderPass()->GetRenderPass(),
-				.subpass = 0}
-			});
+		VK_CommandBuffer& cmd = (*m_Cmds);
+		cmd.Reset();
+		{
+			cmd.Begin(
+				{ .usage = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse },
+				i			
+			);
 
-		cmd.End();
-		*/
+			std::vector<vk::DescriptorSet> descriptorSets{
+					m_RtDescriptorSets[0]->GetDescriptorSet()
+			};
+
+			cmd[i].bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_RtPipeline->GetPipeline());
+			cmd[i].bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, m_RtPipeline->GetLayout(), uint32_t(0), descriptorSets, {});
+
+			cmd[i].traceRaysKHR(
+				m_rgenRegion,
+				m_rmissRegion,
+				m_rchitRegion,
+				m_rcallRegion,
+				m_Camera->resolution.x,
+				m_Camera->resolution.y,
+				1
+			);
+
+			cmd.End(i);
+		}
 	}
 }
 

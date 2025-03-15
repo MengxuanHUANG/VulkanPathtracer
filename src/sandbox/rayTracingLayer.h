@@ -64,7 +64,7 @@ protected:
 	VK_Renderer::VK_Swapchain const* m_Swapchain;
 
 	uPtr<VK_Renderer::PerspectiveCamera> m_Camera;
-	uPtr<VK_Renderer::VK_CommandBuffer> m_Cmd;
+	uPtr<VK_Renderer::VK_CommandBuffer> m_Cmds;
 
 	uPtr<VK_Renderer::VK_GraphicsPipeline> m_MeshShaderLightPipeline;
 

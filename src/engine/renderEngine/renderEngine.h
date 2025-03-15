@@ -58,6 +58,20 @@ namespace VK_Renderer
 		{
 			m_SecondaryCommands[primaryIdx].push_back(cmd);
 		}
+		
+		inline void PushPrimaryCommandAll(vk::CommandBuffer const& cmd)
+		{
+			for (auto& secondary_cmd_list : m_PrimaryCommands)
+			{
+				secondary_cmd_list.push_back(cmd);
+			}
+		}
+		
+		inline void PushPrimaryCommand(vk::CommandBuffer const& cmd, uint32_t const& frameIdx)
+		{
+			m_PrimaryCommands[frameIdx].push_back(cmd);
+		}
+
 		inline void AddRenderFinishSemasphore(vk::Semaphore const& semaphore) { m_RenderFinishSemaphores.push_back(semaphore); }
 
 		void WaitForFence();
@@ -88,7 +102,7 @@ namespace VK_Renderer
 
 		vk::UniqueSemaphore vk_UniqueRenderFinishedSemaphore;
 
-		std::vector<vk::CommandBuffer> m_PrimaryCommands;
+		std::vector<std::vector<vk::CommandBuffer>> m_PrimaryCommands;
 		std::vector<std::vector<vk::CommandBuffer>> m_SecondaryCommands;
 		std::vector<vk::Semaphore> m_RenderFinishSemaphores;
 

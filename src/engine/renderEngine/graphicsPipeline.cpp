@@ -224,7 +224,7 @@ namespace VK_Renderer
 			.setPSetLayouts(createInfo.descriptorSetsLayout.data())
 			.setSetLayoutCount(createInfo.descriptorSetsLayout.size());
 		vk_UniqueLayout = m_Device.GetDevice().createPipelineLayoutUnique(pipelineLayoutCreateInfo);
-
+		vk_Layout = vk_UniqueLayout.get();
 		// create Ray Tracing Pipeline
 		vk::RayTracingPipelineCreateInfoKHR rtPipelineCreateInfo;
 		rtPipelineCreateInfo

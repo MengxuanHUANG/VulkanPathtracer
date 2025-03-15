@@ -63,6 +63,7 @@ namespace VK_Renderer
 		vk_UniqueRenderFinishedSemaphore = m_Device->GetDevice().createSemaphoreUnique(vk::SemaphoreCreateInfo{});
 		m_RenderFinishSemaphores.push_back(vk_UniqueRenderFinishedSemaphore.get());
 
+		m_PrimaryCommands.resize(m_CommandBuffer->Size());
 		m_SecondaryCommands.resize(m_CommandBuffer->Size());
 
 		// Create Fences
@@ -156,7 +157,7 @@ namespace VK_Renderer
 
 		std::array<vk::PipelineStageFlags, 1> wait_stages{ vk::PipelineStageFlagBits::eColorAttachmentOutput };
 
-		std::vector<vk::CommandBuffer> cmds = m_PrimaryCommands;
+		std::vector<vk::CommandBuffer> cmds = m_PrimaryCommands[m_Swapchain->GetImageIdx()];
 		cmds.push_back(command_buffers[m_Swapchain->GetImageIdx()]);
 
 		m_Device->GetGraphicsQueue().submit(vk::SubmitInfo{

@@ -42,7 +42,7 @@ void rayTracingLayer::OnAttach()
 
 	m_Cmds = mkU<VK_CommandBuffer>(m_Device->GetGraphicsCommandPool()->AllocateCommandBuffers({
 		.count = m_Swapchain->GetImageCount(),
-		.level = vk::CommandBufferLevel::eSecondary
+		.level = vk::CommandBufferLevel::ePrimary
 	}));
 	// TODO: load Meshes
 	this->LoadScene();
@@ -70,7 +70,7 @@ void rayTracingLayer::OnAttach()
 	RecordCmd();
 	//m_Engine->PushSecondaryCommandAll(m_Cmds);
 	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i) {
-		m_Engine->PushSecondaryCommand((*m_Cmds)[i], i);
+		m_Engine->PushPrimaryCommand((*m_Cmds)[i], i);
 	}
 }
 
@@ -95,6 +95,8 @@ void rayTracingLayer::OnUpdate(double const& deltaTime)
 
 void rayTracingLayer::OnRender(double const& deltaTime)
 {
+	// submit RayTracing cmds
+
 }
 
 void rayTracingLayer::OnImGui(double const& deltaTime)
@@ -204,14 +206,22 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 
 void rayTracingLayer::RecordCmd()
 {
+	vk::CommandBufferBeginInfo beginInfo;
+	vk::CommandBufferInheritanceInfo inheritanceInfo;
 	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i)
 	{
 		VK_CommandBuffer& cmd = (*m_Cmds);
-		cmd.Reset();
+		cmd.Reset(i);
 		{
 			cmd.Begin(
-				{ .usage = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse },
-				i			
+				{ 
+					.usage = vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+					.inheritInfo = {
+						.renderPass = Application::GetInstance()->GetRenderEngine()->GetRenderPass()->GetRenderPass(),
+						.subpass = 0
+					}
+				}, 
+				i
 			);
 
 			std::vector<vk::DescriptorSet> descriptorSets{

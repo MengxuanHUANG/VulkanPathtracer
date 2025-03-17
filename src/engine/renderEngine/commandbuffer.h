@@ -46,6 +46,7 @@ namespace VK_Renderer
 		const vk::CommandBuffer& operator[](const uint32_t& idx) const { return vk_CommandBuffers[idx].get(); }
 
 	protected:
+		VK_Device const& m_Device;
 		VK_CommandPool const& m_CommandPool;
 		std::vector<vk::UniqueCommandBuffer> vk_CommandBuffers;
 	};

@@ -32,6 +32,8 @@ namespace VK_Renderer
 
 		uint32_t GetMemoryTypeIndex(uint32_t typeBits, vk::MemoryPropertyFlags properties) const;
 
+		void FlushCommands(std::vector<vk::CommandBuffer> const& cmds) const;
+
 		vk::DescriptorPool vk_DescriptorPool;
 
 	protected:

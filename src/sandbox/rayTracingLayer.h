@@ -89,12 +89,12 @@ protected:
 	// BLAS
 	uPtr<VK_Renderer::VK_DeviceBuffer> m_BLASBuffer;
 	vk::AccelerationStructureKHR m_BLAS = nullptr;
-	uint32_t m_BLAS_deviceAddr = 0;
+	vk::DeviceAddress m_BLAS_deviceAddr = 0;
 
 	// TLAS
 	uPtr<VK_Renderer::VK_DeviceBuffer> m_TLASBuffer;
 	vk::AccelerationStructureKHR m_TLAS = nullptr;
-	uint32_t m_TLAS_deviceAddr = 0;
+	vk::DeviceAddress m_TLAS_deviceAddr = 0;
 
 	// RayTracing Descriptor Set
 	std::vector<uPtr<VK_Renderer::VK_Descriptor>> m_RtDescriptorSets;

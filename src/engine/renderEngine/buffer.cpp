@@ -32,9 +32,8 @@ namespace VK_Renderer
 		FreeBuffer(device.GetDevice(), buffer, deviceMemory);
 		buffer = device.GetDevice().createBuffer(vk::BufferCreateInfo{
 			.size = size,
-			.usage = usage,
-			.sharingMode = sharingMode
-			});
+			.usage = usage
+		});
 
 		vk::MemoryRequirements mem_requirements = device.GetDevice().getBufferMemoryRequirements(buffer);
 
@@ -82,11 +81,7 @@ namespace VK_Renderer
 				});
 			cmd.End();
 		}
-		device.GetTransferQueue().submit(vk::SubmitInfo{
-			.commandBufferCount = 1,
-			.pCommandBuffers = &cmd[0]
-		});
-		device.GetTransferQueue().waitIdle();
+		device.FlushCommands({ cmd[0] });
 
 		FreeBuffer(device.GetDevice(), staging_buffer, staging_buffer_mem);
 	}

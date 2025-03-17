@@ -56,22 +56,28 @@ void rayTracingLayer::OnAttach()
 	}
 
 	this->UpdateRtDescriptorSet();
-
+	std::cout << "create descriptor succeed" << std::endl;
 	this->CreateRayTracingPipeline();
-
+	std::cout << "create rtPipeline succeed" << std::endl;
 	// get Physical device properties
 	vk::PhysicalDeviceProperties2 p2{
 		.pNext = &this->m_RtPipelineProperties
 	};
 	this->m_Device->GetPhysicalDevice().getProperties2(&p2);
-
-	this->CreateShaderBindingTable();
-
+	std::cout << "GetPhysicalDevice succeed" << std::endl;
+	try {
+		this->CreateShaderBindingTable();
+	}
+	catch (const std::exception& e) {
+		std::cout << "Create SBT error: " << e.what() << std::endl;
+	}
+	std::cout << "create SBT succeed" << std::endl;
 	RecordCmd();
 	//m_Engine->PushSecondaryCommandAll(m_Cmds);
 	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i) {
 		m_Engine->PushPrimaryCommand((*m_Cmds)[i], i);
 	}
+	std::cout << "create record Command succeed" << std::endl;
 }
 
 void rayTracingLayer::OnDetech()
@@ -250,7 +256,14 @@ void rayTracingLayer::LoadScene()
 {
 	// TODO: load mesh data
 	this->CreateBLAS();
-	this->CreateTLAS();
+	try {
+		std::cout << "Try Create TLAS "<< std::endl;
+		this->CreateTLAS();
+	}
+	catch (const std::exception& e) {
+		std::cout << "Create TLAS error: " << e.what() << std::endl;
+	}
+	std::cout << "create BLAS, TLAS succeed" << std::endl;
 }
 
 void rayTracingLayer::GenBuffers()
@@ -303,7 +316,8 @@ void rayTracingLayer::CreateBLAS()
 	// buffer usage bits
 	vk::Flags<vk::BufferUsageFlagBits> bufferUsageBit = 
 		vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | 
-		vk::BufferUsageFlagBits::eShaderDeviceAddressKHR;
+		vk::BufferUsageFlagBits::eShaderDeviceAddressKHR |
+		vk::BufferUsageFlagBits::eStorageBuffer;
 
 	m_VertexBuffer->CreateFromData(
 		vertices.data(),
@@ -337,7 +351,7 @@ void rayTracingLayer::CreateBLAS()
 			.triangles = {
 				.vertexFormat = vk::Format::eR32G32B32Sfloat,
 				.vertexData = vertexBufferAddr,
-				.vertexStride = sizeof(Vertex),
+				.vertexStride = sizeof(RT_Vertex),
 				.maxVertex = 2,
 				.indexType = vk::IndexType::eUint32,
 				.indexData = indexBufferAddr,
@@ -387,7 +401,7 @@ void rayTracingLayer::CreateBLAS()
 		vk::SharingMode::eExclusive
 	);
 
-	vk::AccelerationStructureBuildGeometryInfoKHR const asBuildGeomInfo = {
+	vk::AccelerationStructureBuildGeometryInfoKHR asBuildGeomInfo = {
 		.type = vk::AccelerationStructureTypeKHR::eBottomLevel,
 		.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
 		.mode = vk::BuildAccelerationStructureModeKHR::eBuild,
@@ -405,11 +419,10 @@ void rayTracingLayer::CreateBLAS()
 		.firstVertex = 0,
 		.transformOffset = 0
 	};
-
 	std::vector<vk::AccelerationStructureBuildRangeInfoKHR const *> asBuildRangeInfos = {
 		&asBuildRangeInfo
 	};
-
+	
 	VK_CommandBuffer cmd = m_Device->GetTransferCommandPool()->AllocateCommandBuffers();
 	cmd.Begin({ .usage = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 	cmd[0].buildAccelerationStructuresKHR(
@@ -419,12 +432,7 @@ void rayTracingLayer::CreateBLAS()
 	);
 	cmd.End();
 
-	m_Device->GetTransferQueue().submit(vk::SubmitInfo{
-		.commandBufferCount = 1,
-		.pCommandBuffers = &(cmd[0])
-		});
-
-	m_Device->GetTransferQueue().waitIdle();
+	m_Device->FlushCommands({ cmd[0] });
 
 	vk::AccelerationStructureDeviceAddressInfoKHR asDeviceAddrInfo;
 	asDeviceAddrInfo.setAccelerationStructure(this->m_BLAS);
@@ -444,7 +452,8 @@ void rayTracingLayer::CreateTLAS()
 
 	// Acceleration Structure Instance
 	vk::AccelerationStructureInstanceKHR vkInstance;
-	vkInstance.setTransform(transform).
+	vkInstance
+		.setTransform(transform).
 		setInstanceCustomIndex(0).
 		setMask(0xFF).
 		setInstanceShaderBindingTableRecordOffset(0).
@@ -463,31 +472,32 @@ void rayTracingLayer::CreateTLAS()
 	// asGeometry
 	vk::AccelerationStructureGeometryDataKHR asGeometryData{
 		.instances = {
-			.arrayOfPointers = vk::False,
 			.data = this->getBufferDeviceAddress(instanceBuffer->GetBuffer())
 		}
 	};
 
 	vk::AccelerationStructureGeometryKHR asGeometry;
-	asGeometry.setGeometryType(vk::GeometryTypeKHR::eInstances)
+	asGeometry
+		.setGeometryType(vk::GeometryTypeKHR::eInstances)
 		.setFlags(vk::GeometryFlagBitsKHR::eOpaque)
 		.setGeometry(asGeometryData);
 	
 	// get TLAS Size
+	uint32_t primitiveCount = 1;
 	vk::AccelerationStructureBuildGeometryInfoKHR asBuildGeometryInfo;
-	asBuildGeometryInfo.setType(vk::AccelerationStructureTypeKHR::eTopLevel)
+	asBuildGeometryInfo
+		.setType(vk::AccelerationStructureTypeKHR::eTopLevel)
 		.setFlags(vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace)
 		.setGeometryCount(1)
-		.setPGeometries(&asGeometry);
-
-	uint32_t primitiveCount = 1;
+		.setPGeometries(&asGeometry)
+		.setMode(vk::BuildAccelerationStructureModeKHR::eBuild);
 
 	vk::AccelerationStructureBuildSizesInfoKHR buildSizeInfo = this->m_Device->GetDevice().getAccelerationStructureBuildSizesKHR(
 		vk::AccelerationStructureBuildTypeKHR::eDevice, 
 		asBuildGeometryInfo, 
-		primitiveCount
+		{ primitiveCount }
 	);
-
+	std::cout << "TLAS Size:" << buildSizeInfo.accelerationStructureSize << std::endl;
 	// bottom level acceleration structure buffer
 	m_TLASBuffer = mkU<VK_Renderer::VK_DeviceBuffer>(*m_Device);
 	m_TLASBuffer->Create(
@@ -511,22 +521,28 @@ void rayTracingLayer::CreateTLAS()
 		vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddressKHR,
 		vk::SharingMode::eExclusive
 	);
+	
+	std::cout << "TLAS buildScratchSize:" << buildSizeInfo.buildScratchSize << std::endl;
 
-	asBuildGeometryInfo.setMode(vk::BuildAccelerationStructureModeKHR::eBuild)
-		.setDstAccelerationStructure(this->m_TLAS)
+	asBuildGeometryInfo
+		.setType(vk::AccelerationStructureTypeKHR::eTopLevel)
+		.setFlags(vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace)
+		.setGeometryCount(1)
 		.setPGeometries(&asGeometry)
+		.setMode(vk::BuildAccelerationStructureModeKHR::eBuild)
+		.setDstAccelerationStructure(this->m_TLAS)
 		.setScratchData({
 			.deviceAddress = this->getBufferDeviceAddress(sratchBuffer->GetBuffer())
-		});
+		})
+		.setSrcAccelerationStructure(nullptr);
 
 	vk::AccelerationStructureBuildRangeInfoKHR asBuildRangeInfo;
-	asBuildRangeInfo.setPrimitiveCount(primitiveCount)
-		.setPrimitiveCount(0)
-		.setFirstVertex(0)
-		.setTransformOffset(0);
+	asBuildRangeInfo
+		.setPrimitiveCount(1)
+		.setTransformOffset(0)
+		.setPrimitiveOffset(0);
 
-	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> buildStructureRangeInfo{ &asBuildRangeInfo };
-
+	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> buildStructureRangeInfo = { &asBuildRangeInfo };
 
 	VK_CommandBuffer cmd = m_Device->GetTransferCommandPool()->AllocateCommandBuffers();
 	cmd.Begin({ .usage = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
@@ -536,17 +552,11 @@ void rayTracingLayer::CreateTLAS()
 		buildStructureRangeInfo.data()
 	);
 	cmd.End();
-
-	m_Device->GetTransferQueue().submit(vk::SubmitInfo{
-		.commandBufferCount = 1,
-		.pCommandBuffers = &(cmd[0])
-		});
-
-	m_Device->GetTransferQueue().waitIdle();
+	m_Device->FlushCommands({ cmd[0] });
 
 	vk::AccelerationStructureDeviceAddressInfoKHR asDeviceAddrInfo;
 	asDeviceAddrInfo.setAccelerationStructure(this->m_TLAS);
-
+	
 	this->m_TLAS_deviceAddr = this->m_Device->GetDevice().getAccelerationStructureAddressKHR(asDeviceAddrInfo);
 }
 
@@ -653,6 +663,8 @@ void rayTracingLayer::CreateShaderBindingTable()
 	vk::DeviceSize offset = 0;
 	uint32_t handleIdx{ 0 };
 	
+	std::cout << "sbt start update Buffer" << std::endl;
+
 	// copy raygen
 	m_RtSBTBuffer->Update(getHandle(handleIdx++), offset, handleSize);
 
@@ -671,5 +683,7 @@ void rayTracingLayer::CreateShaderBindingTable()
 		m_RtSBTBuffer->Update(getHandle(handleIdx++), offset, handleSize);
 		offset += m_rchitRegion.stride;
 	}
+
+	std::cout << "sbt end update Buffer" << std::endl;
 }
 

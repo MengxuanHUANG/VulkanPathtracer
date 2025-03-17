@@ -107,6 +107,23 @@ namespace VK_Renderer
 		}
 		throw std::runtime_error("Could not find a suitable memory type!");
 	}
+
+	void VK_Device::FlushCommands(std::vector<vk::CommandBuffer> const& cmds) const
+	{
+		// create fence
+		vk::UniqueFence fence = vk_Device.createFenceUnique(vk::FenceCreateInfo{ .flags = vk::FenceCreateFlagBits::eSignaled });
+		vk_Device.resetFences(fence.get());
+
+		// submit commandBuffer
+		vk_TransferQueue.submit(vk::SubmitInfo{
+			.commandBufferCount = static_cast<uint32_t>(cmds.size()),
+			.pCommandBuffers = cmds.data(),
+			},
+			fence.get()
+		);
+		// wait fence
+		vk_Device.waitForFences(fence.get(), vk::True, std::numeric_limits<uint32_t>().max());
+	}
 	
 	vk::SampleCountFlagBits VK_Device::GetMaxSampleCount() const
 	{

@@ -36,30 +36,15 @@ void rayTracingLayer::OnAttach()
 		.position = {0, 2, 4},
 	};
 	m_Camera->m_Transform.Rotate(glm::pi<float>(), { 0, 1, 0 });
-	m_Camera->resolution = { m_Swapchain->vk_ImageExtent.width, m_Swapchain->vk_ImageExtent.height };
-	m_Camera->RecomputeProjView();
 
-	RTCameraUBO cameraUBO;
-	cameraUBO.viewInverse = glm::inverse(m_Camera.get()->GetViewMatrix());
-	cameraUBO.projInverse = glm::inverse(m_Camera.get()->GetProjMatrix());
 	m_CamBuffer = mkU<VK_StagingBuffer>(*m_Device);
-	m_CamBuffer->CreateFromData(&cameraUBO, sizeof(RTCameraUBO), vk::BufferUsageFlagBits::eUniformBuffer, vk::SharingMode::eExclusive);
 
 	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i)
 	{
-		uPtr<VK_Texture2D>& texture = this->m_Images.emplace_back(mkU<VK_Texture2D>(*m_Device));
-		texture->Create(
-			{
-				.width	= m_Swapchain->vk_ImageExtent.width,
-				.height = m_Swapchain->vk_ImageExtent.height,
-				.depth	= 1,
-			},
-			{
-				.format = vk::Format::eR8G8B8A8Unorm,
-				.usage = vk::ImageUsageFlagBits::eStorage,
-			}
-		);
+		this->m_Images.emplace_back(mkU<VK_Texture2D>(*m_Device));
 	}
+
+	this->HandleWindowResize(680, 680);
 
 	m_Cmds = mkU<VK_CommandBuffer>(m_Device->GetGraphicsCommandPool()->AllocateCommandBuffers({
 		.count = m_Swapchain->GetImageCount(),
@@ -279,6 +264,37 @@ void rayTracingLayer::GenTextures()
 void rayTracingLayer::CreateDescriptors()
 {
 	// TODO:
+}
+
+void rayTracingLayer::HandleWindowResize(uint32_t const& width, uint32_t const& height)
+{
+	// update Camera 
+	m_Camera->resolution = { 680, 680 };
+	m_Camera->RecomputeProjView();
+
+	// update Camera UBO
+	RTCameraUBO cameraUBO;
+	cameraUBO.viewInverse = glm::inverse(m_Camera.get()->GetViewMatrix());
+	cameraUBO.projInverse = glm::inverse(m_Camera.get()->GetProjMatrix());
+	
+	m_CamBuffer->CreateFromData(&cameraUBO, sizeof(RTCameraUBO), vk::BufferUsageFlagBits::eUniformBuffer, vk::SharingMode::eExclusive);
+
+	// update Render Textures
+	for (auto& image : this->m_Images)
+	{
+		image->Create(
+			{
+				.width = static_cast<uint32_t>(width),
+				.height = static_cast<uint32_t>(height),
+				.depth = 1,
+			},
+			{
+				.format = vk::Format::eR8G8B8A8Unorm,
+				.usage = vk::ImageUsageFlagBits::eStorage,
+			}
+		);
+
+	}
 }
 
 vk::DeviceAddress rayTracingLayer::getBufferDeviceAddress(vk::Buffer const& buffer)
@@ -700,4 +716,3 @@ void rayTracingLayer::CreateShaderBindingTable()
 
 	std::cout << "sbt end update Buffer" << std::endl;
 }
-

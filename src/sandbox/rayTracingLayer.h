@@ -47,6 +47,8 @@ private:
 	void GenTextures();
 	void CreateDescriptors();
 
+	void HandleWindowResize(uint32_t const& width, uint32_t const& height);
+
 	// ray tracing related
 	vk::DeviceAddress getBufferDeviceAddress(vk::Buffer const& buffer);
 	void CreateBLAS();

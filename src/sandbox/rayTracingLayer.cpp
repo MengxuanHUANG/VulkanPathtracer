@@ -130,6 +130,7 @@ void rayTracingLayer::OnImGui(double const& deltaTime)
 		cameraUBO.projInverse = glm::inverse(m_Camera.get()->GetProjMatrix());
 		m_CamBuffer->Update(&cameraUBO, 0, sizeof(RTCameraUBO));
 	}
+	ImGui::Image(m_ImGuiImages[0], ImVec2(m_Camera->resolution.x, m_Camera->resolution.y));
 	ImGui::End();
 }
 
@@ -279,10 +280,16 @@ void rayTracingLayer::HandleWindowResize(uint32_t const& width, uint32_t const& 
 	
 	m_CamBuffer->CreateFromData(&cameraUBO, sizeof(RTCameraUBO), vk::BufferUsageFlagBits::eUniformBuffer, vk::SharingMode::eExclusive);
 
+	m_ImGuiImages.clear();
+
 	// update Render Textures
+	std::vector<uint32_t> data;
+	data.resize(width * height, 0);
 	for (auto& image : this->m_Images)
 	{
-		image->Create(
+		image->CreateFromData(
+			data.data(),
+			width * height * sizeof(uint32_t),
 			{
 				.width = static_cast<uint32_t>(width),
 				.height = static_cast<uint32_t>(height),
@@ -290,10 +297,12 @@ void rayTracingLayer::HandleWindowResize(uint32_t const& width, uint32_t const& 
 			},
 			{
 				.format = vk::Format::eR8G8B8A8Unorm,
-				.usage = vk::ImageUsageFlagBits::eStorage,
+				.usage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled,
 			}
 		);
-
+		
+		ImTextureID textureID = ImGui_ImplVulkan_AddTexture(image->GetSampler(), image->GetImageView(), VK_IMAGE_LAYOUT_GENERAL);
+		m_ImGuiImages.push_back(textureID);
 	}
 }
 

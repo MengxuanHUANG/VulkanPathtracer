@@ -47,5 +47,5 @@ void main()
 		0
 	);
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 0.0));
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(prd.hitValue, 1.0));
 }

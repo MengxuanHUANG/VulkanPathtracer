@@ -25,6 +25,9 @@ using namespace MyCore;
 #include "scene/light.h"
 #include "scene/scene.h"
 
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_vulkan.h>
+
 class rayTracingLayer : public Layer
 {
 public:
@@ -115,4 +118,5 @@ protected:
 	vk::StridedDeviceAddressRegionKHR m_rcallRegion;
 
 	std::vector<uPtr<VK_Renderer::VK_Texture2D>> m_Images;
+	std::vector<ImTextureID> m_ImGuiImages;
 };

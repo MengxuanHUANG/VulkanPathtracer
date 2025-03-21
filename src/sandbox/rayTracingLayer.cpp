@@ -8,11 +8,10 @@
 
 using namespace VK_Renderer;
 
-struct CameraUBO
+struct RTCameraUBO
 {
-	glm::vec4 pos;
-	glm::mat4 viewProjMat;
-	std::array<glm::vec4, 6> planes;
+	glm::mat4 viewInverse;
+	glm::mat4 projInverse;
 };
 
 struct RT_Vertex
@@ -27,18 +26,40 @@ rayTracingLayer::rayTracingLayer(std::string const& name)
 
 void rayTracingLayer::OnAttach()
 {
+	m_Engine = Application::GetInstance()->GetRenderEngine();
+	m_Device = m_Engine->GetDevice();
+	m_Swapchain = m_Engine->GetSwapchain();
+
 	m_Camera = mkU<PerspectiveCamera>();
 	m_Camera->far = 300.f;
 	m_Camera->m_Transform = Transformation{
 		.position = {0, 2, 4},
 	};
 	m_Camera->m_Transform.Rotate(glm::pi<float>(), { 0, 1, 0 });
-	m_Camera->resolution = { 680, 680 };
+	m_Camera->resolution = { m_Swapchain->vk_ImageExtent.width, m_Swapchain->vk_ImageExtent.height };
 	m_Camera->RecomputeProjView();
 
-	m_Engine = Application::GetInstance()->GetRenderEngine();
-	m_Device = m_Engine->GetDevice();
-	m_Swapchain = m_Engine->GetSwapchain();
+	RTCameraUBO cameraUBO;
+	cameraUBO.viewInverse = glm::inverse(m_Camera.get()->GetViewMatrix());
+	cameraUBO.projInverse = glm::inverse(m_Camera.get()->GetProjMatrix());
+	m_CamBuffer = mkU<VK_StagingBuffer>(*m_Device);
+	m_CamBuffer->CreateFromData(&cameraUBO, sizeof(RTCameraUBO), vk::BufferUsageFlagBits::eUniformBuffer, vk::SharingMode::eExclusive);
+
+	for (int i = 0; i < m_Swapchain->GetImageCount(); ++i)
+	{
+		uPtr<VK_Texture2D>& texture = this->m_Images.emplace_back(mkU<VK_Texture2D>(*m_Device));
+		texture->Create(
+			{
+				.width	= m_Swapchain->vk_ImageExtent.width,
+				.height = m_Swapchain->vk_ImageExtent.height,
+				.depth	= 1,
+			},
+			{
+				.format = vk::Format::eR8G8B8A8Unorm,
+				.usage = vk::ImageUsageFlagBits::eStorage,
+			}
+		);
+	}
 
 	m_Cmds = mkU<VK_CommandBuffer>(m_Device->GetGraphicsCommandPool()->AllocateCommandBuffers({
 		.count = m_Swapchain->GetImageCount(),
@@ -54,6 +75,8 @@ void rayTracingLayer::OnAttach()
 	{
 		m_RtDescriptorSets.emplace_back(mkU<VK_Renderer::VK_Descriptor>(*m_Device));
 	}
+
+	m_CamDescriptor = mkU<VK_Descriptor>(*m_Device);
 
 	this->UpdateRtDescriptorSet();
 	std::cout << "create descriptor succeed" << std::endl;
@@ -117,11 +140,10 @@ void rayTracingLayer::OnImGui(double const& deltaTime)
 	}
 	if (ImGui::DragFloat("Alpha", &m_Camera->alpha, 0.01f, 0.f, 1.f))
 	{
-		CameraUBO camera_ubo;
-		camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
-		camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
-		camera_ubo.planes = m_Camera->GetPlanes();
-		m_CamBuffer->Update(&camera_ubo, 0, sizeof(CameraUBO));
+		RTCameraUBO cameraUBO;
+		cameraUBO.viewInverse = glm::inverse(m_Camera.get()->GetViewMatrix());
+		cameraUBO.projInverse = glm::inverse(m_Camera.get()->GetProjMatrix());
+		m_CamBuffer->Update(&cameraUBO, 0, sizeof(RTCameraUBO));
 	}
 	ImGui::End();
 }
@@ -140,12 +162,6 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 			glm::vec2 offset = 0.001f * glm::vec2(mouse_cur - mouse_pre);
 			m_Camera->m_Transform.Translate({ -offset.x, offset.y, 0 });
 			m_Camera->RecomputeProjView();
-
-			CameraUBO camera_ubo;
-			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
-			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
-			camera_ubo.planes = m_Camera->GetPlanes();
-			//m_CamBuffer->Update(&camera_ubo, 0, sizeof(CameraUBO));
 		}
 		if (mouseState & SDL_BUTTON(SDL_BUTTON_MIDDLE))
 		{
@@ -155,12 +171,6 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 			glm::vec3 pivot = m_Camera->m_Transform.position + forward * 10.f;
 			m_Camera->m_Transform.RotateAround(pivot, { -offset.y, -offset.x, 0 });
 			m_Camera->RecomputeProjView();
-
-			CameraUBO camera_ubo;
-			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
-			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
-			camera_ubo.planes = m_Camera->GetPlanes();
-			//m_CamBuffer->Update(&camera_ubo, 0, sizeof(CameraUBO));
 		}
 		mouse_pre = mouse_cur;
 	}
@@ -182,12 +192,6 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 			m_Camera->resolution = { e.window.data1, e.window.data2 };
 
 			m_Camera->RecomputeProjView();
-
-			CameraUBO camera_ubo;
-			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
-			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
-			camera_ubo.planes = m_Camera->GetPlanes();
-			//m_CamBuffer->Update(&camera_ubo, 0, sizeof(CameraUBO));
 		}
 		if (e.window.event == SDL_WINDOWEVENT_MAXIMIZED)
 		{
@@ -199,14 +203,9 @@ bool rayTracingLayer::OnEvent(SDL_Event const& e)
 			m_Camera->resolution = { width, height };
 
 			m_Camera->RecomputeProjView();
-
-			CameraUBO camera_ubo;
-			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
-			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
-			camera_ubo.planes = m_Camera->GetPlanes();
-			//m_CamBuffer->Update(&camera_ubo, 0, sizeof(CameraUBO));
 		}
 	}
+
 	return false;
 }
 
@@ -231,7 +230,8 @@ void rayTracingLayer::RecordCmd()
 			);
 
 			std::vector<vk::DescriptorSet> descriptorSets{
-					m_RtDescriptorSets[0]->GetDescriptorSet()
+					m_RtDescriptorSets[0]->GetDescriptorSet(),
+					m_CamDescriptor->GetDescriptorSet()
 			};
 
 			cmd[i].bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, m_RtPipeline->GetPipeline());
@@ -580,14 +580,27 @@ void rayTracingLayer::UpdateRtDescriptorSet()
 				.type = vk::DescriptorType::eStorageImage,
 				.stage = vk::ShaderStageFlagBits::eRaygenKHR,
 				.imageInfo = vk::DescriptorImageInfo{
-					.imageView = this->m_Swapchain->vk_SwapchainImageViews[i],
+					.imageView = this->m_Images[i]->GetImageView(),
 					.imageLayout = vk::ImageLayout::eGeneral,
 				}
 			},
+			
 		});
 
 		this->m_RtDescriptorSetLayout = m_RtDescriptorSets[i]->GetDescriptorSetLayout();
 	}
+
+	m_CamDescriptor->Create({
+		VK_DescriptorBinding{
+			.type = vk::DescriptorType::eUniformBuffer,
+			.stage = vk::ShaderStageFlagBits::eRaygenKHR,
+			.bufferInfo = vk::DescriptorBufferInfo{
+				.buffer = m_CamBuffer->GetBuffer(),
+				.offset = 0,
+				.range = m_CamBuffer->GetSize()
+			}
+		},
+	});
 }
 
 void rayTracingLayer::CreateRayTracingPipeline()
@@ -595,12 +608,13 @@ void rayTracingLayer::CreateRayTracingPipeline()
 	m_RtPipeline = mkU< VK_Renderer::VK_GraphicsPipeline>(*m_Device, *m_Engine->GetRenderPass());
 	m_RtPipeline->CreateRayTracingPipeline({
 		.descriptorSetsLayout = {
-			this->m_RtDescriptorSetLayout
+			this->m_RtDescriptorSetLayout,
+			this->m_CamDescriptor->GetDescriptorSetLayout()
 		},
 		.shadersInfo = {
 			{.shaderStage = vk::ShaderStageFlagBits::eRaygenKHR, .shaderPath = "shaders/simple.rgen.spv"},
-			{.shaderStage = vk::ShaderStageFlagBits::eClosestHitKHR, .shaderPath = "shaders/simple.rchit.spv"},
 			{.shaderStage = vk::ShaderStageFlagBits::eMissKHR, .shaderPath = "shaders/simple.rmiss.spv"},
+			{.shaderStage = vk::ShaderStageFlagBits::eClosestHitKHR, .shaderPath = "shaders/simple.rchit.spv"},
 		}
 	});
 }

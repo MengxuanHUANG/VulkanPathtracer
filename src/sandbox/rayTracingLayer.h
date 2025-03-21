@@ -111,4 +111,6 @@ protected:
 	vk::StridedDeviceAddressRegionKHR m_rmissRegion;
 	vk::StridedDeviceAddressRegionKHR m_rchitRegion;
 	vk::StridedDeviceAddressRegionKHR m_rcallRegion;
+
+	std::vector<uPtr<VK_Renderer::VK_Texture2D>> m_Images;
 };

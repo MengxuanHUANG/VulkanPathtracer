@@ -10,6 +10,7 @@ using namespace VK_Renderer;
 
 struct CameraUBO
 {
+	glm::uvec4 meshletCount;
 	glm::vec4 pos;
 	glm::mat4 viewProjMat;
 	std::array<glm::vec4, 6> planes;
@@ -25,7 +26,7 @@ void RenderLayer::OnAttach()
 	m_Camera = mkU<PerspectiveCamera>();
 	m_Camera->far = 300.f;
 	m_Camera->m_Transform = Transformation{
-		.position = {0, 2, 4},
+		.position = {0, 2, 14},
 	};
 	m_Camera->m_Transform.Rotate(glm::pi<float>(), { 0, 1, 0 });
 	m_Camera->resolution = { 680, 680 };
@@ -160,6 +161,7 @@ void RenderLayer::OnImGui(double const& deltaTime)
 	if (ImGui::DragFloat("Alpha", &m_Camera->alpha, 0.01f, 0.f, 1.f))
 	{
 		CameraUBO camera_ubo;
+		camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 		camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 		camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 		camera_ubo.planes = m_Camera->GetPlanes();
@@ -178,6 +180,7 @@ void RenderLayer::OnImGui(double const& deltaTime)
 			m_Camera->RecomputeProjView();
 
 			CameraUBO camera_ubo;
+			camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 			camera_ubo.planes = m_Camera->GetPlanes();
@@ -282,6 +285,7 @@ bool RenderLayer::OnEvent(SDL_Event const& e)
 			m_Camera->RecomputeProjView();
 
 			CameraUBO camera_ubo;
+			camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 			camera_ubo.planes = m_Camera->GetPlanes();
@@ -297,6 +301,7 @@ bool RenderLayer::OnEvent(SDL_Event const& e)
 			m_Camera->RecomputeProjView();
 			
 			CameraUBO camera_ubo;
+			camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 			camera_ubo.planes = m_Camera->GetPlanes();
@@ -324,6 +329,7 @@ bool RenderLayer::OnEvent(SDL_Event const& e)
 			m_Camera->RecomputeProjView();
 
 			CameraUBO camera_ubo;
+			camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 			camera_ubo.planes = m_Camera->GetPlanes();
@@ -341,6 +347,7 @@ bool RenderLayer::OnEvent(SDL_Event const& e)
 			m_Camera->RecomputeProjView();
 
 			CameraUBO camera_ubo;
+			camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 			camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 			camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 			camera_ubo.planes = m_Camera->GetPlanes();
@@ -384,6 +391,7 @@ void RenderLayer::RecordCmd()
 
 			// Draw call
 			uint32_t num_workgroups_x = m_Scene->GetMeshlets()->GetMeshletsCount();
+			//num_workgroups_x = (num_workgroups_x + 31) / 32;
 			uint32_t num_workgroups_y = 1;
 			uint32_t num_workgroups_z = 1;
 
@@ -443,19 +451,19 @@ void RenderLayer::LoadScene()
 	//	Transformation{
 	//		.position = {0, -1.5, 0}
 	//});
-	//m_Scene->AddMesh("meshes/wahoo.obj", "Wahoo",
-	//	Transformation{
-	//		.position = {0, -1.5, 0},
-	//		.scale = {1, 1, 1}
-	//});
+	m_Scene->AddMesh("meshes/wahoo.obj", "Wahoo",
+		Transformation{
+			.position = {0, -1.5, 0},
+			.scale = {0.5, 0.5, 0.5}
+	});
 	
 	//m_Scene->AddMesh("meshes/ignores/Astartes.obj", "Astartes1",
 	//	Transformation{
 	//		.position = {-417.5f, -1.4, -7.8},
 	//		.scale = {0.02f, 0.02f, 0.02f}
 	//});
-
-	m_Scene->AddMesh("meshes/train.obj", "train1", Transformation{
+	
+	/*m_Scene->AddMesh("meshes/train.obj", "train1", Transformation{
 			.position = {400.f, -1.5, -10.f},
 			.scale = {0.1f, 0.1f, 0.1f}
 	});
@@ -465,7 +473,7 @@ void RenderLayer::LoadScene()
 			.scale = {0.1f, 0.1f, 0.1f}
 	});
 
-	m_Scene->AddMesh("meshes/station_only.obj", "station only", transformation);
+	m_Scene->AddMesh("meshes/station_only.obj", "station only", transformation);*/
 	
 	//m_Scene->AddMesh("meshes/ignores/test_alpha.obj", "station",
 	//	Transformation{
@@ -521,7 +529,7 @@ void RenderLayer::LoadScene()
 	*/
 
 	
-	m_SceneLight->AddQuadLightsFromFile("meshes/lights.obj", transformation);
+	m_SceneLight->AddQuadLightsFromFile("meshes/twolights.obj", transformation);
 
 	float radius = 2.5f;
 	float radius_r2 = 1.41421356237f * radius;
@@ -561,7 +569,7 @@ void RenderLayer::LoadScene()
 		}
 	};
 
-	m_SceneLight->AddLight(AreaLight{
+	/*m_SceneLight->AddLight(AreaLight{
 		AreaLightCreateInfo{
 			.type = LIGHT_TYPE::BEZIER,
 			.boundSphere = circle_bound_sphere,
@@ -570,7 +578,7 @@ void RenderLayer::LoadScene()
 			.lightVertex = circle_verts,
 			.lightMaterial = circle_mat,
 		}
-	});
+	});*/
 
 
 
@@ -610,7 +618,7 @@ void RenderLayer::LoadScene()
 		}
 	};
 
-	m_SceneLight->AddLight(AreaLight{
+	/*m_SceneLight->AddLight(AreaLight{
 		AreaLightCreateInfo{
 			.type = LIGHT_TYPE::BEZIER,
 			.boundSphere = drop_bound_sphere,
@@ -619,7 +627,7 @@ void RenderLayer::LoadScene()
 			.lightVertex = drop_verts,
 			.lightMaterial = drop_mat,
 		}
-		});
+		});*/
 
 	
 	/*
@@ -678,6 +686,7 @@ void RenderLayer::GenBuffers()
 {
 	// Create Camera buffer
 	CameraUBO camera_ubo;
+	camera_ubo.meshletCount.x = m_Scene->GetMeshlets()->GetMeshletsCount();
 	camera_ubo.pos = glm::vec4(m_Camera.get()->GetTransform().position, 1);
 	camera_ubo.viewProjMat = m_Camera->GetProjViewMatrix();
 	camera_ubo.planes = m_Camera->GetPlanes();
@@ -922,8 +931,8 @@ void RenderLayer::CreateGraphicsPipeline()
 			m_LightDescriptor->GetDescriptorSetLayout(),
 			m_MaterialParamDescriptor->GetDescriptorSetLayout(),
 		},
-		.taskShaderPath = "shaders/mesh_ltc.task.spv",
-		.meshShaderPath = "shaders/mesh_ltc.mesh.spv",
-			.fragShaderPath = "shaders/mesh_ltc.frag.spv"
+		.taskShaderPath = "shaders/mesh_flat.task.spv",
+		.meshShaderPath = "shaders/mesh_flat.mesh.spv",
+			.fragShaderPath = "shaders/mesh_flat.frag.spv"
 	});
 }

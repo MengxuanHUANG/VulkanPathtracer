@@ -1,6 +1,8 @@
 #version 450
 
 #extension GL_EXT_mesh_shader : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
 
 struct Task
 {
@@ -8,11 +10,37 @@ struct Task
 	vec3 color;
 };
 
+struct MeshletDescription
+{
+	vec4 boundingSphere;
+	uint modelId;
+	uint vertexCount;
+	uint primCount;
+	uint vertexBegin;
+	uint primBegin;
+};
+
+struct ModelMatrix
+{
+	mat4 model;
+	mat4 invModel;
+};
+
 taskPayloadSharedEXT Task OUT;
 
-layout(set = 1, binding = 0) uniform MeshletInfo {
-    uint Meshlet_Size;
-	uint Triangle_Count;
+layout(set = 0, binding = 0) uniform CameraUBO {
+	uvec4 meshletCount;
+	vec4 pos;
+    mat4 viewProjMat;
+	vec4 planes[6];
+} u_CamUBO;
+
+layout(set = 1, binding = 0) buffer MeshletInfos {
+    MeshletDescription meshlets[];
+};
+
+layout(set = 1, binding = 1) buffer ModelMatries {
+    ModelMatrix modelMatrix[];
 };
 
 // A simple hash function
@@ -31,12 +59,32 @@ vec3 randomColor(int seed) {
     return vec3(r, g, b);
 }
 
+shared uint outPutMeshletCount;
+
+layout (local_size_x = 1) in;
 void main()
 {
-	OUT.task_id = int(gl_WorkGroupID.x);
-	OUT.color = randomColor(OUT.task_id);
+	uint local_id = gl_LocalInvocationID.x;//(gl_LocalInvocationID.x + 31) % 32;
 
-	uint remain = Triangle_Count - max(OUT.task_id * Meshlet_Size, 0);
+	if (local_id == 0) {
+        outPutMeshletCount = 0;
+    }
+    // Synchronize to ensure 'outPutMeshletCount' is zero before any thread proceeds
+    barrier();
+    memoryBarrierShared();
 
-	EmitMeshTasksEXT(min(remain, Meshlet_Size), 1, 1);// use gl_WorkGroupID to index in mesh shader
+	if(gl_GlobalInvocationID.x >= u_CamUBO.meshletCount.x){
+		return;
+	}
+
+	atomicAdd(outPutMeshletCount, 1);
+	barrier();
+    memoryBarrierShared();
+
+	if (local_id == 0 && outPutMeshletCount > 0) 
+	{
+		OUT.task_id = int(gl_WorkGroupID.x);
+		OUT.color = randomColor(OUT.task_id);
+		EmitMeshTasksEXT(outPutMeshletCount, 1, 1);// use gl_WorkGroupID to index in mesh shader
+	}
 }

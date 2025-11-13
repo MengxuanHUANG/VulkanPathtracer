@@ -8,14 +8,14 @@ layout (location = 0) in PerVertexData
 	vec3 color;
 } fragIn;
 
-layout (location = 0) out vec3 fs_Color;
+layout (location = 0) out vec4 fs_Color;
 
 layout(set = 1, binding = 5) uniform sampler2DArray u_Texture;
 
 void main()
 {
-	fs_Color = texture(u_Texture, vec3(fragIn.uv, 0.f)).rgb;
-	//fs_Color = fragIn.color;
+	//fs_Color = texture(u_Texture, vec3(fragIn.uv, 0.f)).rgb;
+	fs_Color =  vec4(fragIn.color, 1.0);
 
-	//fs_Color = vec3(1.0, 1.0, 1.0);
+	//fs_Color = vec4(1.0, 1.0, 1.0, 1.0);
 }

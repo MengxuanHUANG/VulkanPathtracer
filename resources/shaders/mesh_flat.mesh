@@ -1,9 +1,10 @@
 #version 450
 
 #extension GL_EXT_mesh_shader : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_EXT_shader_8bit_storage : require
 
-
-layout(local_size_x = 1) in;
+layout (local_size_x = 128) in;
 layout(triangles, max_vertices = 3, max_primitives = 1) out;
 
 struct Task
@@ -12,38 +13,60 @@ struct Task
 	vec3 color;
 };
 
+struct Vertex
+{
+	vec4 position;
+	vec4 normal;
+	vec4 uv;
+	ivec4 materialId;
+};
 struct TriangleInfo
 {
 	ivec4 pId;
     ivec4 nId;
     ivec4 uvId;
 };
+struct MeshletDescription
+{
+	vec4 boundingSphere; // center: xyz, radius: w
+	uint modelId;
+	uint vertexCount;
+	uint primCount;
+	uint vertexBegin;
+	uint primBegin;
+};
 
+struct ModelMatrix
+{
+	mat4 model;
+	mat4 invModel;
+};
 
 layout(set = 0, binding = 0) uniform CameraUBO {
+	uvec4 meshletCount;
 	vec4 pos;
     mat4 viewProjMat;
+	vec4 planes[6];
 } u_CamUBO;
 
-layout(set = 1, binding = 0) uniform MeshletInfo {
-    uint Meshlet_Size;
-	uint Triangle_Count;
+layout(set = 1, binding = 0) buffer MeshletInfos {
+    MeshletDescription meshlets[];
 };
 
-layout(set = 1, binding = 1) buffer Triangles {
-   TriangleInfo triangle[];
+layout(set = 1, binding = 1) buffer ModelMatries {
+    ModelMatrix modelMatrix[];
 };
 
-layout(set = 1, binding = 2) buffer Positions {
-    float positions[];
+layout(set = 1, binding = 2) buffer VertexIndices {
+   uint vertexIndices[];
 };
 
-layout(set = 1, binding = 3) buffer Normals {
-    float normals[];
+layout(set = 1, binding = 3) buffer PrimitiveIndices {
+    uint8_t primitiveIndices[];
 };
 
-layout(set = 1, binding = 4) buffer UVs {
-    float uvs[];
+layout(set = 1, std430, binding = 4) buffer Vertices {
+    Vertex vertices[];
 };
 
 taskPayloadSharedEXT Task IN;
@@ -83,27 +106,48 @@ vec3 randomColor(int seed) {
 
 void main()
 {
-	uint vertexCount = 3;
-	uint triangleCount = 1;
+	
+	
+	//int primitiveIndex = int(IN.task_id + gl_WorkGroupID.x * 128 + gl_LocalInvocationID.x);
+
+	MeshletDescription meshlet = meshlets[IN.task_id];
+
+	//uint vertexCount = meshlet.primCount * 3;
+	//uint triangleCount = meshlet.primCount;
+
+	uint vertexCount = meshlet.primCount * 3;
+	uint triangleCount = meshlet.primCount;
+
 	SetMeshOutputsEXT(vertexCount, triangleCount);
-
-	uint tri_id = IN.task_id * Meshlet_Size + gl_WorkGroupID.x;
-
-	for(int i = 0; i < 3; ++i)
+	
+	uint base = gl_LocalInvocationID.x * 3;
+	uint sma = min(meshlet.primCount, 11);
+	if(gl_LocalInvocationID.x >= sma)
 	{
-		int vid = triangle[tri_id].pId[i];
-		vec4 pos = vec4(
-			positions[3 * vid],
-			positions[3 * vid + 1],
-			positions[3 * vid + 2],
-			1.f
-		);
-		gl_MeshVerticesEXT[i].gl_Position = u_CamUBO.viewProjMat * pos;
+		return;
+	}
 
-		int uv_id = triangle[tri_id].uvId[i];
-		v_out[i].uv = vec2(uvs[2 * uv_id], uvs[2 * uv_id + 1]);
-		v_out[i].color = IN.color;
+	ivec3 local_id = ivec3(
+		primitiveIndices[meshlet.primBegin + 3 * gl_LocalInvocationID.x],
+		primitiveIndices[meshlet.primBegin + 3 * gl_LocalInvocationID.x + 1],
+		primitiveIndices[meshlet.primBegin + 3 * gl_LocalInvocationID.x + 2] 
+	);
+
+	ivec3 real_id = ivec3(
+		vertexIndices[meshlet.vertexBegin + local_id.x],
+		vertexIndices[meshlet.vertexBegin + local_id.y],
+		vertexIndices[meshlet.vertexBegin + local_id.z]
+	);
+	for(int v = 0; v < 3; ++v)
+	{
+		//v_out[v].pos = vertices[real_id[v]].position.xyz;
+		//v_out[v].pos = (modelMatrix[meshlet.modelId].model * vec4(vertices[real_id[v]].position.xyz, 1.f)).xyz;
+		vec3 worldPos = (modelMatrix[meshlet.modelId].model * vec4(vertices[real_id[v]].position.xyz, 1.f)).xyz;
+		gl_MeshVerticesEXT[base + v].gl_Position = u_CamUBO.viewProjMat * vec4(worldPos, 1.f);
+		v_out[v].uv = vertices[real_id[v]].uv.xy;
+		v_out[v].color = IN.color;
+		//v_out[v].normal = (modelMatrix[meshlet.modelId].invModel * vec4(vertices[real_id[v]].normal.xyz, 0.f)).xyz;
 	}
 	
-	gl_PrimitiveTriangleIndicesEXT[0] =  uvec3(0, 1, 2);
+	gl_PrimitiveTriangleIndicesEXT[gl_LocalInvocationID.x] =  uvec3(base, base + 1, base + 2);
 }

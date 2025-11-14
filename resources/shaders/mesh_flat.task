@@ -61,7 +61,7 @@ vec3 randomColor(int seed) {
 
 shared uint outPutMeshletCount;
 
-layout (local_size_x = 1) in;
+layout (local_size_x = 32) in;
 void main()
 {
 	uint local_id = gl_LocalInvocationID.x;//(gl_LocalInvocationID.x + 31) % 32;
@@ -69,9 +69,10 @@ void main()
 	if (local_id == 0) {
         outPutMeshletCount = 0;
     }
-    // Synchronize to ensure 'outPutMeshletCount' is zero before any thread proceeds
+	// Synchronize to ensure 'outPutMeshletCount' is zero before any thread proceeds
     barrier();
-    memoryBarrierShared();
+	memoryBarrierShared();
+
 
 	if(gl_GlobalInvocationID.x >= u_CamUBO.meshletCount.x){
 		return;
@@ -83,7 +84,7 @@ void main()
 
 	if (local_id == 0 && outPutMeshletCount > 0) 
 	{
-		OUT.task_id = int(gl_WorkGroupID.x);
+		OUT.task_id = int(gl_WorkGroupID.x * 32);
 		OUT.color = randomColor(OUT.task_id);
 		EmitMeshTasksEXT(outPutMeshletCount, 1, 1);// use gl_WorkGroupID to index in mesh shader
 	}

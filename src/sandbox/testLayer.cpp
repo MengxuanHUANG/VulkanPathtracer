@@ -391,7 +391,7 @@ void RenderLayer::RecordCmd()
 
 			// Draw call
 			uint32_t num_workgroups_x = m_Scene->GetMeshlets()->GetMeshletsCount();
-			//num_workgroups_x = (num_workgroups_x + 31) / 32;
+			num_workgroups_x = (num_workgroups_x + 31) / 32;
 			uint32_t num_workgroups_y = 1;
 			uint32_t num_workgroups_z = 1;
 

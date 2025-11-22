@@ -20,3 +20,6 @@
 	path = external/imgui
 	url = https://github.com/ocornut/imgui.git
 	branch = docking
+[submodule "external/METIS"]
+	path = external/METIS
+	url = https://github.com/KarypisLab/METIS.git

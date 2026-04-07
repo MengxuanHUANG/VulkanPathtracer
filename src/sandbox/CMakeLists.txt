@@ -27,3 +27,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 	Engine
 )
 
+# 确保 CUDA runtime 头文件可被访问
+find_package(CUDA 12 REQUIRED)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
+

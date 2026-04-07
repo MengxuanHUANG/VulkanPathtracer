@@ -12,7 +12,7 @@ namespace MyCore
 	Application* Application::s_Instance = nullptr;
 
 	Application::Application(std::string const& appConfigFile)
-		:b_IsRunning(false)
+		:b_IsRunning(false), b_IsHidden(false)
 	{
 		assert(!s_Instance);
 		s_Instance = this;

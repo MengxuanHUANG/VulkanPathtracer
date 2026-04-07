@@ -69,6 +69,8 @@ namespace MyCore
 				.level = vk::CommandBufferLevel::eSecondary
 			}
 		));
+
+		ImGui_ImplVulkan_CreateFontsTexture();
 	}
 
 	void ImGuiLayer::OnDetech()
